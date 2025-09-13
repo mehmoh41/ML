@@ -15,7 +15,7 @@ import * as tf from "@tensorflow/tfjs";
 import { Progress } from "../ui/progress";
 
 // URL to your Teachable Machine model
-const URL = "/my_model/";
+const URL = "https://teachablemachine.withgoogle.com/models/dLoNiKL7F/";
 
 type Prediction = {
   className: string;
