@@ -10,9 +10,14 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { Webcam } from "lucide-react";
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import * as tmPose from "@teachablemachine/pose";
-import * as tf from "@tensorflow/tfjs";
 import { Progress } from "../ui/progress";
+
+// Extend the window object to include tmPose
+declare global {
+  interface Window {
+    tmPose: any;
+  }
+}
 
 // URL to your Teachable Machine model
 const URL = "https://teachablemachine.withgoogle.com/models/dLoNiKL7F/";
@@ -28,8 +33,8 @@ export default function EmotionDetectionView() {
   const [loading, setLoading] = useState(true);
   const [status, setStatus] = useState("Loading model...");
 
-  const webcamRef = useRef<tmPose.Webcam | null>(null);
-  const modelRef = useRef<tmPose.CustomPoseNet | null>(null);
+  const webcamRef = useRef<any | null>(null);
+  const modelRef = useRef<any | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const webcamContainerRef = useRef<HTMLDivElement>(null);
   const animationFrameId = useRef<number | null>(null);
@@ -37,7 +42,7 @@ export default function EmotionDetectionView() {
   const modelURL = URL + "model.json";
   const metadataURL = URL + "metadata.json";
 
-  const predict = useCallback(async (webcam: tmPose.Webcam) => {
+  const predict = useCallback(async (webcam: any) => {
     const model = modelRef.current;
     if (model && webcam.canvas) {
       const { pose, posenetOutput } = await model.estimatePose(webcam.canvas);
@@ -49,8 +54,10 @@ export default function EmotionDetectionView() {
         const ctx = canvas.getContext("2d");
         if (ctx) {
           ctx.drawImage(webcam.canvas, 0, 0);
-          tmPose.drawKeypoints(pose.keypoints, 0.6, ctx);
-          tmPose.drawSkeleton(pose.keypoints, 0.6, ctx);
+          if (window.tmPose && pose) {
+            window.tmPose.drawKeypoints(pose.keypoints, 0.6, ctx);
+            window.tmPose.drawSkeleton(pose.keypoints, 0.6, ctx);
+          }
         }
       }
     }
@@ -66,16 +73,22 @@ export default function EmotionDetectionView() {
   }, [predict]);
 
   const init = useCallback(async () => {
+    // Check if tmPose is available on the window object
+    if (typeof window.tmPose === 'undefined') {
+      setStatus("Waiting for libraries to load...");
+      setTimeout(init, 500); // Retry after 500ms
+      return;
+    }
+
     try {
       setStatus("Loading model...");
-      await tf.ready();
-      const loadedModel = await tmPose.load(modelURL, metadataURL);
+      const loadedModel = await window.tmPose.load(modelURL, metadataURL);
       modelRef.current = loadedModel;
 
       setStatus("Initializing webcam...");
       const size = 400;
       const flip = true;
-      const newWebcam = new tmPose.Webcam(size, size, flip);
+      const newWebcam = new window.tmPose.Webcam(size, size, flip);
       await newWebcam.setup();
       await newWebcam.play();
       webcamRef.current = newWebcam;
@@ -95,7 +108,7 @@ export default function EmotionDetectionView() {
       toast({
         variant: "destructive",
         title: "Initialization Failed",
-        description: "Could not load model or access webcam. Please make sure your model files are in the public/my_model folder.",
+        description: "Could not load model or access webcam.",
       });
     }
   }, [loop, metadataURL, modelURL, toast]);
