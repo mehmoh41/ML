@@ -9,13 +9,13 @@ import {
 } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { Webcam } from "lucide-react";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import * as tmPose from "@teachablemachine/pose";
 import * as tf from "@tensorflow/tfjs";
 import { Progress } from "../ui/progress";
 
 // URL to your Teachable Machine model
-const URL = "https://teachablemachine.withgoogle.com/models/dLoNiKL7F/";
+const URL = "/my_model/";
 
 type Prediction = {
   className: string;
@@ -25,23 +25,52 @@ type Prediction = {
 export default function EmotionDetectionView() {
   const { toast } = useToast();
   const [predictions, setPredictions] = useState<Prediction[]>([]);
-  const [model, setModel] = useState<tmPose.CustomPoseNet | null>(null);
-  const [webcam, setWebcam] = useState<tmPose.Webcam | null>(null);
   const [loading, setLoading] = useState(true);
   const [status, setStatus] = useState("Loading model...");
 
+  const webcamRef = useRef<tmPose.Webcam | null>(null);
+  const modelRef = useRef<tmPose.CustomPoseNet | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const webcamContainerRef = useRef<HTMLDivElement>(null);
+  const animationFrameId = useRef<number | null>(null);
 
   const modelURL = URL + "model.json";
   const metadataURL = URL + "metadata.json";
 
-  const init = async () => {
+  const predict = useCallback(async (webcam: tmPose.Webcam) => {
+    const model = modelRef.current;
+    if (model && webcam.canvas) {
+      const { pose, posenetOutput } = await model.estimatePose(webcam.canvas);
+      const prediction = await model.predict(posenetOutput);
+      setPredictions(prediction);
+
+      const canvas = canvasRef.current;
+      if (canvas && pose) {
+        const ctx = canvas.getContext("2d");
+        if (ctx) {
+          ctx.drawImage(webcam.canvas, 0, 0);
+          tmPose.drawKeypoints(pose.keypoints, 0.6, ctx);
+          tmPose.drawSkeleton(pose.keypoints, 0.6, ctx);
+        }
+      }
+    }
+  }, []);
+
+  const loop = useCallback(async () => {
+    const webcam = webcamRef.current;
+    if (webcam) {
+      webcam.update();
+      await predict(webcam);
+      animationFrameId.current = requestAnimationFrame(loop);
+    }
+  }, [predict]);
+
+  const init = useCallback(async () => {
     try {
       setStatus("Loading model...");
       await tf.ready();
       const loadedModel = await tmPose.load(modelURL, metadataURL);
-      setModel(loadedModel);
+      modelRef.current = loadedModel;
 
       setStatus("Initializing webcam...");
       const size = 400;
@@ -49,7 +78,7 @@ export default function EmotionDetectionView() {
       const newWebcam = new tmPose.Webcam(size, size, flip);
       await newWebcam.setup();
       await newWebcam.play();
-      setWebcam(newWebcam);
+      webcamRef.current = newWebcam;
 
       if (webcamContainerRef.current) {
         webcamContainerRef.current.replaceChildren(newWebcam.canvas);
@@ -58,7 +87,7 @@ export default function EmotionDetectionView() {
       setLoading(false);
       setStatus("Ready");
       
-      requestAnimationFrame(loop);
+      animationFrameId.current = requestAnimationFrame(loop);
 
     } catch (error) {
       console.error("Error initializing Teachable Machine:", error);
@@ -66,46 +95,25 @@ export default function EmotionDetectionView() {
       toast({
         variant: "destructive",
         title: "Initialization Failed",
-        description: "Could not load model or access webcam. Please check console for errors.",
+        description: "Could not load model or access webcam. Please make sure your model files are in the public/my_model folder.",
       });
     }
-  };
-
-  const loop = async () => {
-    if (webcam) {
-      webcam.update();
-      await predict(webcam);
-    }
-    requestAnimationFrame(loop);
-  };
-
-  const predict = async (webcam: tmPose.Webcam) => {
-    if (model && webcam.canvas) {
-      const { pose, posenetOutput } = await model.estimatePose(webcam.canvas);
-      const prediction = await model.predict(posenetOutput);
-      setPredictions(prediction);
-
-      if (canvasRef.current && pose) {
-        const ctx = canvasRef.current.getContext("2d");
-        if (ctx) {
-          ctx.drawImage(webcam.canvas, 0, 0);
-          tmPose.drawKeypoints(pose.keypoints, 0.6, ctx);
-          tmPose.drawSkeleton(pose.keypoints, 0.6, ctx);
-        }
-      }
-    }
-  };
+  }, [loop, metadataURL, modelURL, toast]);
   
   useEffect(() => {
     init();
 
     return () => {
-      // Cleanup function to stop webcam
+      // Cleanup function to stop webcam and animation loop
+      if (animationFrameId.current) {
+        cancelAnimationFrame(animationFrameId.current);
+      }
+      const webcam = webcamRef.current;
       if (webcam) {
         webcam.stop();
       }
     };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [init]);
 
   const highestPrediction = predictions.reduce(
     (prev, current) => (prev.probability > current.probability ? prev : current),
