@@ -1,6 +1,5 @@
 "use client";
 
-import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -53,7 +52,7 @@ export default function EmotionDetectionView() {
       setWebcam(newWebcam);
 
       if (webcamContainerRef.current) {
-        webcamContainerRef.current.appendChild(newWebcam.canvas);
+        webcamContainerRef.current.replaceChildren(newWebcam.canvas);
       }
       
       setLoading(false);
