@@ -1,108 +1,117 @@
 "use client";
 
-import { enhanceEmotionDetection } from "@/ai/flows/enhance-emotion-detection";
 import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
   CardDescription,
-  CardFooter,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import {
-  Form,
-  FormControl,
-  FormDescription,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { Camera, Loader2, Smile, Sparkles, User, Webcam } from "lucide-react";
+import { Webcam } from "lucide-react";
 import React, { useEffect, useRef, useState } from "react";
-import { useForm } from "react-hook-form";
-import { z } from "zod";
-import WebcamView from "../shared/webcam-view";
+import * as tmPose from "@teachablemachine/pose";
+import * as tf from "@tensorflow/tfjs";
+import { Progress } from "../ui/progress";
 
-const emotions = ["Happy", "Sad", "Neutral", "Surprised"];
-const emotionIcons: { [key: string]: React.ReactNode } = {
-  Happy: "😄",
-  Sad: "😢",
-  Neutral: "😐",
-  Surprised: "😲",
+// URL to your Teachable Machine model
+const URL = "https://teachablemachine.withgoogle.com/models/dLoNiKL7F/";
+
+type Prediction = {
+  className: string;
+  probability: number;
 };
-
-const formSchema = z.object({
-  description: z.string().min(10, {
-    message: "Description must be at least 10 characters.",
-  }),
-});
 
 export default function EmotionDetectionView() {
   const { toast } = useToast();
-  const [detectedEmotion, setDetectedEmotion] = useState("Neutral");
-  const [samples, setSamples] = useState<{ [key: string]: number }>({
-    Happy: 0,
-    Sad: 0,
-    Neutral: 0,
-    Surprised: 0,
-  });
+  const [predictions, setPredictions] = useState<Prediction[]>([]);
+  const [model, setModel] = useState<tmPose.CustomPoseNet | null>(null);
+  const [webcam, setWebcam] = useState<tmPose.Webcam | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [status, setStatus] = useState("Loading model...");
 
-  const [aiResult, setAiResult] = useState<{
-    enhancedAccuracy: number;
-    reasoning: string;
-  } | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const webcamContainerRef = useRef<HTMLDivElement>(null);
 
-  const form = useForm<z.infer<typeof formSchema>>({
-    resolver: zodResolver(formSchema),
-    defaultValues: {
-      description: "",
-    },
-  });
+  const modelURL = URL + "model.json";
+  const metadataURL = URL + "metadata.json";
 
-  useEffect(() => {
-    const interval = setInterval(() => {
-      const randomIndex = Math.floor(Math.random() * emotions.length);
-      setDetectedEmotion(emotions[randomIndex]);
-    }, 2000); // Change emotion every 2 seconds
-    return () => clearInterval(interval);
-  }, []);
-
-  const handleCapture = (emotion: string) => {
-    setSamples((prev) => ({ ...prev, [emotion]: prev[emotion] + 1 }));
-    toast({
-      title: "Sample Captured!",
-      description: `Added one sample for '${emotion}'.`,
-    });
-  };
-
-  async function onSubmit(values: z.infer<typeof formSchema>) {
-    setIsSubmitting(true);
-    setAiResult(null);
+  const init = async () => {
     try {
-      const result = await enhanceEmotionDetection({
-        emotion: detectedEmotion,
-        description: values.description,
-        currentAccuracy: 0.85, // Dummy value
-      });
-      setAiResult(result);
+      setStatus("Loading model...");
+      await tf.ready();
+      const loadedModel = await tmPose.load(modelURL, metadataURL);
+      setModel(loadedModel);
+
+      setStatus("Initializing webcam...");
+      const size = 400;
+      const flip = true;
+      const newWebcam = new tmPose.Webcam(size, size, flip);
+      await newWebcam.setup();
+      await newWebcam.play();
+      setWebcam(newWebcam);
+
+      if (webcamContainerRef.current) {
+        webcamContainerRef.current.appendChild(newWebcam.canvas);
+      }
+      
+      setLoading(false);
+      setStatus("Ready");
+      
+      requestAnimationFrame(loop);
+
     } catch (error) {
+      console.error("Error initializing Teachable Machine:", error);
+      setStatus("Error loading model. Please check permissions and refresh.");
       toast({
         variant: "destructive",
-        title: "An error occurred.",
-        description: "Failed to get enhancement from AI.",
+        title: "Initialization Failed",
+        description: "Could not load model or access webcam. Please check console for errors.",
       });
-    } finally {
-      setIsSubmitting(false);
     }
-  }
+  };
+
+  const loop = async () => {
+    if (webcam) {
+      webcam.update();
+      await predict(webcam);
+    }
+    requestAnimationFrame(loop);
+  };
+
+  const predict = async (webcam: tmPose.Webcam) => {
+    if (model && webcam.canvas) {
+      const { pose, posenetOutput } = await model.estimatePose(webcam.canvas);
+      const prediction = await model.predict(posenetOutput);
+      setPredictions(prediction);
+
+      if (canvasRef.current && pose) {
+        const ctx = canvasRef.current.getContext("2d");
+        if (ctx) {
+          ctx.drawImage(webcam.canvas, 0, 0);
+          tmPose.drawKeypoints(pose.keypoints, 0.6, ctx);
+          tmPose.drawSkeleton(pose.keypoints, 0.6, ctx);
+        }
+      }
+    }
+  };
+  
+  useEffect(() => {
+    init();
+
+    return () => {
+      // Cleanup function to stop webcam
+      if (webcam) {
+        webcam.stop();
+      }
+    };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const highestPrediction = predictions.reduce(
+    (prev, current) => (prev.probability > current.probability ? prev : current),
+    { className: "...", probability: 0 }
+  );
 
   return (
     <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
@@ -111,57 +120,31 @@ export default function EmotionDetectionView() {
           <CardHeader className="bg-muted/30">
             <CardTitle className="flex items-center gap-2">
               <Webcam className="text-primary" />
-              Live Feed
+              Live Pose Detection
             </CardTitle>
             <CardDescription>
-              The model is analyzing the video feed in real-time.
+              The model is analyzing your pose in real-time using your Teachable Machine model.
             </CardDescription>
           </CardHeader>
           <CardContent className="p-0">
-            <div className="relative aspect-video">
-              <WebcamView />
+            <div className="relative aspect-square max-w-full overflow-hidden mx-auto bg-black flex items-center justify-center">
+              {loading && (
+                 <div className="absolute z-10 text-center text-white">
+                    <p>{status}</p>
+                 </div>
+              )}
+               <div ref={webcamContainerRef} className="absolute inset-0" style={{ display: loading ? 'none' : 'block' }}></div>
+              <canvas ref={canvasRef} width={400} height={400} className="h-full w-full object-contain" />
+              
               <div className="absolute bottom-4 right-4 flex items-center gap-4 rounded-lg bg-background/80 p-4 shadow-md backdrop-blur-sm">
-                <span className="text-5xl">
-                  {emotionIcons[detectedEmotion]}
-                </span>
                 <div>
-                  <p className="text-sm text-muted-foreground">Detected Emotion</p>
+                  <p className="text-sm text-muted-foreground">Detected Pose</p>
                   <p className="text-2xl font-bold font-headline text-foreground">
-                    {detectedEmotion}
+                    {highestPrediction.className}
                   </p>
                 </div>
               </div>
             </div>
-          </CardContent>
-        </Card>
-
-        <Card className="shadow-lg">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <User className="text-primary" />
-              Model Training
-            </CardTitle>
-            <CardDescription>
-              Improve the model by providing more examples. Click the buttons below to capture your expression for each emotion.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="grid grid-cols-2 gap-4 md:grid-cols-4">
-            {emotions.map((emotion) => (
-              <div key={emotion} className="flex flex-col items-center gap-2">
-                <p className="font-medium">
-                  {emotion} ({samples[emotion]})
-                </p>
-                <Button
-                  variant="outline"
-                  size="lg"
-                  className="w-full"
-                  onClick={() => handleCapture(emotion)}
-                >
-                  <Camera className="mr-2 h-4 w-4" />
-                  Capture
-                </Button>
-              </div>
-            ))}
           </CardContent>
         </Card>
       </div>
@@ -169,71 +152,36 @@ export default function EmotionDetectionView() {
       <div className="lg:col-span-1">
         <Card className="sticky top-20 shadow-lg">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Sparkles className="text-accent" />
-              Enhance with AI
-            </CardTitle>
+            <CardTitle>Pose Probabilities</CardTitle>
             <CardDescription>
-              Use GenAI to understand how textual descriptions can improve model accuracy.
+              Confidence scores for each detected pose class.
             </CardDescription>
           </CardHeader>
-          <CardContent>
-            <Form {...form}>
-              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-                <div>
-                  <Label className="font-medium">Current Emotion</Label>
-                  <Input
-                    readOnly
-                    value={detectedEmotion}
-                    className="mt-2"
-                  />
+          <CardContent className="space-y-4">
+             {loading ? (
+                 <div className="text-center text-muted-foreground">
+                    <p>Waiting for model to load...</p>
+                 </div>
+             ) : predictions.length > 0 ? (
+              predictions
+                .sort((a, b) => b.probability - a.probability)
+                .map((p) => (
+                <div key={p.className}>
+                  <div className="mb-1 flex justify-between">
+                    <span className="font-medium">{p.className}</span>
+                    <span className="text-muted-foreground">
+                      {(p.probability * 100).toFixed(0)}%
+                    </span>
+                  </div>
+                  <Progress value={p.probability * 100} />
                 </div>
-                <FormField
-                  control={form.control}
-                  name="description"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Emotion Description</FormLabel>
-                      <FormControl>
-                        <Textarea
-                          placeholder={`e.g., "A happy face often has raised cheeks, and corners of the mouth pulled back and up."`}
-                          className="resize-none"
-                          {...field}
-                        />
-                      </FormControl>
-                      <FormDescription>
-                        Describe the '{detectedEmotion}' emotion in detail.
-                      </FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <Button type="submit" className="w-full" disabled={isSubmitting}>
-                  {isSubmitting ? (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  ) : (
-                    <Sparkles className="mr-2 h-4 w-4" />
-                  )}
-                  Enhance Detection
-                </Button>
-              </form>
-            </Form>
+              ))
+            ) : (
+                <div className="text-center text-muted-foreground">
+                    <p>No poses detected yet.</p>
+                </div>
+            )}
           </CardContent>
-          {aiResult && (
-            <CardFooter className="flex flex-col items-start gap-4 border-t pt-6">
-              <CardTitle className="text-lg">AI Analysis Result</CardTitle>
-              <div className="w-full">
-                <p className="text-sm font-medium text-muted-foreground">Potential Enhanced Accuracy</p>
-                <p className="font-headline text-2xl font-bold text-primary">
-                  {(aiResult.enhancedAccuracy * 100).toFixed(1)}%
-                </p>
-              </div>
-              <div className="w-full">
-                <p className="text-sm font-medium text-muted-foreground">Reasoning</p>
-                <p className="text-sm">{aiResult.reasoning}</p>
-              </div>
-            </CardFooter>
-          )}
         </Card>
       </div>
     </div>

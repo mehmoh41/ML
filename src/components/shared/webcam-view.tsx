@@ -3,7 +3,7 @@
 import { WebcamIcon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
-export default function WebcamView() {
+export default function WebcamView({ onStream, onStop }: { onStream?: (stream: MediaStream) => void, onStop?: () => void }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -17,6 +17,9 @@ export default function WebcamView() {
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
         }
+        if (onStream) {
+            onStream(stream);
+        }
       } catch (err) {
         console.error("Error accessing webcam:", err);
         setError("Could not access the webcam. Please check permissions and try again.");
@@ -29,8 +32,11 @@ export default function WebcamView() {
       if (stream) {
         stream.getTracks().forEach((track) => track.stop());
       }
+      if (onStop) {
+        onStop();
+      }
     };
-  }, []);
+  }, [onStream, onStop]);
 
   return (
     <div className="relative h-full w-full overflow-hidden bg-black">
