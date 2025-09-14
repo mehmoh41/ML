@@ -20,7 +20,7 @@ declare global {
   }
 }
 
-const URL = "https://teachablemachine.withgoogle.com/models/n1zk7_NFn/";
+const URL = "/my_model/";
 
 type Prediction = {
   className: string;
