@@ -21,7 +21,7 @@ declare global {
   }
 }
 
-const URL = "https://teachablemachine.withgoogle.com/models/R13n0a1-L/";
+const URL = "https://teachablemachine.withgoogle.com/models/S4v5i_52-/";
 
 type Prediction = {
   className: string;
@@ -37,7 +37,6 @@ export default function SignLanguageView() {
 
   const modelRef = useRef<any | null>(null);
   const webcamRef = useRef<any | null>(null);
-  const videoRef = useRef<HTMLVideoElement | null>(null);
   const animationFrameId = useRef<number | null>(null);
 
   const stopWebcam = useCallback(() => {
@@ -47,20 +46,11 @@ export default function SignLanguageView() {
     }
 
     if (webcamRef.current) {
-      const stream = webcamRef.current.srcObject;
-      if (stream) {
-        const tracks = stream.getTracks();
-        tracks.forEach((track: MediaStreamTrack) => track.stop());
-      }
        if (typeof webcamRef.current.stop === "function") {
         webcamRef.current.stop();
       }
       webcamRef.current = null;
     }
-     if (videoRef.current) {
-      videoRef.current.srcObject = null;
-    }
-
 
     if (modelRef.current) {
       if (typeof modelRef.current.dispose === "function") {
@@ -124,9 +114,10 @@ export default function SignLanguageView() {
         await newWebcam.play();
         webcamRef.current = newWebcam;
 
-        if (videoRef.current) {
-            videoRef.current.srcObject = newWebcam.canvas.captureStream();
-            videoRef.current.play();
+        const videoContainer = document.getElementById('webcam-container');
+        if (videoContainer) {
+            videoContainer.innerHTML = '';
+            videoContainer.appendChild(newWebcam.canvas);
         }
 
         setLoading(false);
@@ -192,8 +183,7 @@ export default function SignLanguageView() {
             </Button>
           </CardHeader>
           <CardContent className="p-0">
-            <div className="relative aspect-square max-w-full overflow-hidden mx-auto bg-black flex items-center justify-center">
-               <video ref={videoRef} className="h-full w-full object-cover" autoPlay playsInline muted />
+            <div id="webcam-container" className="relative aspect-square max-w-full overflow-hidden mx-auto bg-black flex items-center justify-center">
               {!isWebcamActive && !loading && (
                 <div className="absolute z-10 text-center text-white/80 p-4">
                   <Webcam className="mx-auto h-12 w-12 mb-4" />
