@@ -9,12 +9,10 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { Webcam, Video, VideoOff, Sparkles, Loader2 } from "lucide-react";
+import { Webcam, Video, VideoOff } from "lucide-react";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Progress } from "../ui/progress";
 import { Button } from "../ui/button";
-import { enhanceEmotionDetection, EnhanceEmotionDetectionOutput } from "@/ai/flows/enhance-emotion-detection";
-import { Textarea } from "../ui/textarea";
 
 // Extend the window object to include tmPose
 declare global {
@@ -38,10 +36,6 @@ export default function EmotionDetectionView() {
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState("Ready to start");
   const [isWebcamActive, setIsWebcamActive] = useState(false);
-
-  const [happyDescription, setHappyDescription] = useState("A person smiling, with corners of the mouth turned up, and raised cheeks.");
-  const [isEnhancing, setIsEnhancing] = useState(false);
-  const [enhancementResult, setEnhancementResult] = useState<EnhanceEmotionDetectionOutput | null>(null);
 
   const webcamRef = useRef<any | null>(null);
   const modelRef = useRef<any | null>(null);
@@ -165,46 +159,7 @@ export default function EmotionDetectionView() {
     };
   }, [stopWebcam]);
 
-  const handleEnhance = async () => {
-    const happyPrediction = predictions.find(p => p.className === "Happy");
-    const currentAccuracy = happyPrediction?.probability || 0;
-
-    setIsEnhancing(true);
-    setEnhancementResult(null);
-    try {
-      const result = await enhanceEmotionDetection({
-        emotion: "Happy",
-        description: happyDescription,
-        currentAccuracy,
-      });
-      setEnhancementResult(result);
-      toast({
-        title: "Enhancement Simulated!",
-        description: "AI has calculated a potential new accuracy.",
-      });
-    } catch (error) {
-      toast({
-        variant: "destructive",
-        title: "Enhancement Failed",
-        description: "Could not get a result from the AI model.",
-      });
-    } finally {
-      setIsEnhancing(false);
-    }
-  };
-
-  const getEnhancedPrediction = (prediction: Prediction) => {
-    if (enhancementResult && prediction.className === 'Happy') {
-        return {
-            ...prediction,
-            probability: enhancementResult.enhancedAccuracy,
-        };
-    }
-    return prediction;
-  };
-  
-  const displayPredictions = predictions.map(getEnhancedPrediction);
-  const highestPrediction = displayPredictions.reduce(
+  const highestPrediction = predictions.reduce(
     (prev, current) => (prev.probability > current.probability ? prev : current),
     { className: "...", probability: 0 }
   );
@@ -252,38 +207,6 @@ export default function EmotionDetectionView() {
             </div>
           </CardContent>
         </Card>
-        <Card className="shadow-lg">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2"><Sparkles className="text-accent"/>AI-Powered Enhancement</CardTitle>
-            <CardDescription>
-              Help the AI improve its accuracy for the "Happy" emotion by providing a better description.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid gap-4">
-              <div>
-                <label htmlFor="happy-description" className="text-sm font-medium">Describe "Happy"</label>
-                <Textarea 
-                  id="happy-description"
-                  value={happyDescription}
-                  onChange={(e) => setHappyDescription(e.target.value)}
-                  placeholder="e.g., A person with a wide smile, showing teeth..."
-                  className="mt-1"
-                />
-              </div>
-              <Button onClick={handleEnhance} disabled={isEnhancing}>
-                {isEnhancing ? <Loader2 className="animate-spin" /> : <Sparkles />}
-                <span>Simulate Enhancement</span>
-              </Button>
-            </div>
-          </CardContent>
-          {enhancementResult && (
-            <CardFooter className="flex flex-col items-start gap-2 border-t pt-4">
-              <h3 className="font-semibold">Enhancement Result:</h3>
-              <p className="text-sm text-muted-foreground">{enhancementResult.reasoning}</p>
-            </CardFooter>
-          )}
-        </Card>
       </div>
 
       <div className="lg:col-span-1">
@@ -303,8 +226,8 @@ export default function EmotionDetectionView() {
                  <div className="text-center text-muted-foreground py-8">
                     <p>Waiting for model to load...</p>
                  </div>
-             ) : displayPredictions.length > 0 ? (
-              displayPredictions
+             ) : predictions.length > 0 ? (
+              predictions
                 .sort((a, b) => b.probability - a.probability)
                 .map((p) => (
                 <div key={p.className}>
