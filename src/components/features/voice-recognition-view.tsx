@@ -20,8 +20,6 @@ declare global {
   }
 }
 
-const URL = "/my_model/";
-
 type Prediction = {
   className: string;
   probability: number;
@@ -34,9 +32,6 @@ export default function VoiceRecognitionView() {
   const [isListening, setIsListening] = useState(false);
 
   const recognizerRef = useRef<any | null>(null);
-
-  const modelURL = URL + "model.json";
-  const metadataURL = URL + "metadata.json";
 
   const stopListening = useCallback(() => {
     if (recognizerRef.current && recognizerRef.current.isListening()) {
@@ -61,6 +56,10 @@ export default function VoiceRecognitionView() {
 
       if (!recognizerRef.current) {
         setStatus("Loading model...");
+        const URL = window.location.origin + "/my_model/";
+        const modelURL = URL + "model.json";
+        const metadataURL = URL + "metadata.json";
+
         const recognizer = window.speechCommands.create(
           "BROWSER_FFT",
           undefined,
@@ -100,7 +99,7 @@ export default function VoiceRecognitionView() {
       setIsListening(false);
       setLoading(false);
     }
-  }, [metadataURL, modelURL]);
+  }, []);
 
   const handleToggleListening = () => {
     if (isListening) {
