@@ -44,8 +44,12 @@ export default function SignLanguageView() {
     const model = modelRef.current;
     const webcam = webcamRef.current;
     if (model && webcam?.canvas) {
-      const prediction = await model.predict(webcam.canvas);
-      setPredictions(prediction);
+      try {
+        const prediction = await model.predict(webcam.canvas);
+        setPredictions(prediction);
+      } catch (error) {
+        console.error("Prediction error:", error);
+      }
     }
   }, []);
   
@@ -63,24 +67,19 @@ export default function SignLanguageView() {
       animationFrameId.current = null;
     }
     
-    if (webcamRef.current) {
-      if (typeof webcamRef.current.stop === 'function') {
-        webcamRef.current.stop();
-      }
-      webcamRef.current = null;
+    if (webcamRef.current && typeof webcamRef.current.stop === 'function') {
+      webcamRef.current.stop();
     }
+    webcamRef.current = null;
     
     if (canvasContainerRef.current) {
         canvasContainerRef.current.innerHTML = '';
     }
 
-    // Explicitly dispose of the model
-    if (modelRef.current) {
-      if (typeof modelRef.current.dispose === 'function') {
-        modelRef.current.dispose();
-      }
-      modelRef.current = null;
+    if (modelRef.current && typeof modelRef.current.dispose === 'function') {
+      modelRef.current.dispose();
     }
+    modelRef.current = null;
 
     setIsWebcamActive(false);
     setStatus("Webcam stopped.");
@@ -103,9 +102,8 @@ export default function SignLanguageView() {
       const metadataURL = URL + "metadata.json";
 
       setStatus("Loading model...");
-      if (!modelRef.current) {
-        modelRef.current = await window.tmImage.load(modelURL, metadataURL);
-      }
+      const loadedModel = await window.tmImage.load(modelURL, metadataURL);
+      modelRef.current = loadedModel;
       
       setStatus("Initializing webcam...");
       const size = 400;
@@ -133,10 +131,10 @@ export default function SignLanguageView() {
         title: "Initialization Failed",
         description: "Could not load model or access webcam.",
       });
-      setIsWebcamActive(false);
+      stopWebcam();
       setLoading(false);
     }
-  }, [loop, toast]);
+  }, [loop, toast, stopWebcam]);
   
   const handleToggleWebcam = () => {
     if (isWebcamActive) {
