@@ -28,6 +28,7 @@ import { useForm } from "react-hook-form";
 import { z } from "zod";
 import WebcamView from "../shared/webcam-view";
 import { Badge } from "../ui/badge";
+import { Label } from "../ui/label";
 
 const existingGestures = ["A", "B", "C", "Hello", "Thank you"];
 

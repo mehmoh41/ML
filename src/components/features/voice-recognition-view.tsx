@@ -13,7 +13,6 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Mic, Music, Sparkles, Square } from "lucide-react";
 import React, { useRef, useState } from "react";
-import { Progress } from "../ui/progress";
 
 type RecordingState = "idle" | "recording" | "stopped" | "analyzing";
 type DetectionResult = "..." | "Singing" | "Not Singing";

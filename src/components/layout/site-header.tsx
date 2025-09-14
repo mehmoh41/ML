@@ -11,7 +11,7 @@ const titles: { [key: string]: string } = {
 
 export function SiteHeader() {
   const pathname = usePathname();
-  const title = titles[pathname] ?? "MM Models";
+  const title = titles[pathname] ?? "Models";
 
   return (
     <header className="sticky top-0 z-10 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
