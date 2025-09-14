@@ -108,7 +108,6 @@ export default function EmotionDetectionView() {
 
       setLoading(false);
       setStatus("Ready");
-      setIsWebcamActive(true);
 
       animationFrameId.current = requestAnimationFrame(loop);
     } catch (error) {
@@ -131,12 +130,13 @@ export default function EmotionDetectionView() {
     }
 
     if (webcamRef.current) {
+      // Manually stop the stream tracks to turn off the camera light
       const stream = webcamRef.current.canvas?.srcObject;
       if (stream) {
         const tracks = stream.getTracks();
         tracks.forEach((track: MediaStreamTrack) => track.stop());
       }
-      if (typeof webcamRef.current.stop === "function") {
+       if (typeof webcamRef.current.stop === "function") {
         webcamRef.current.stop();
       }
       webcamRef.current = null;
@@ -162,22 +162,28 @@ export default function EmotionDetectionView() {
     setStatus("Webcam stopped.");
     setPredictions([]);
     setLoading(false);
-    setIsWebcamActive(false);
   }, []);
 
+  useEffect(() => {
+    if (isWebcamActive) {
+      startWebcam();
+    } else {
+      stopWebcam();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isWebcamActive]);
+
+  // Cleanup effect to stop everything when the component unmounts
   useEffect(() => {
     return () => {
       stopWebcam();
     };
   }, [stopWebcam]);
 
+
   const handleToggleWebcam = useCallback(() => {
-    if (isWebcamActive) {
-      stopWebcam();
-    } else {
-      startWebcam();
-    }
-  }, [isWebcamActive, startWebcam, stopWebcam]);
+    setIsWebcamActive((prev) => !prev);
+  }, []);
 
   const highestPrediction = predictions.reduce(
     (prev, current) =>
@@ -211,7 +217,7 @@ export default function EmotionDetectionView() {
           </CardHeader>
           <CardContent className="p-0">
             <div className="relative aspect-square max-w-full overflow-hidden mx-auto bg-black flex items-center justify-center">
-              {(loading || !isWebcamActive) && (
+              {(!isWebcamActive) && (
                 <div className="absolute z-10 text-center text-white/80 p-4">
                   <Webcam className="mx-auto h-12 w-12 mb-4" />
                   <p className="font-medium">{status}</p>
@@ -224,7 +230,7 @@ export default function EmotionDetectionView() {
                 ref={canvasRef}
                 width={400}
                 height={400}
-                className="h-full w-full object-contain"
+                className={`h-full w-full object-contain ${isWebcamActive ? "" : "hidden"}`}
               />
 
               {isWebcamActive && predictions.length > 0 && (

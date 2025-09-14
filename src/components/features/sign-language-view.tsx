@@ -43,7 +43,6 @@ export default function SignLanguageView() {
   const predict = useCallback(async () => {
     if (!modelRef.current || !videoRef.current) return;
     try {
-      if (!modelRef.current) return;
       const prediction = await modelRef.current.predict(videoRef.current);
       setPredictions(prediction);
     } catch (error) {
@@ -52,56 +51,54 @@ export default function SignLanguageView() {
   }, []);
 
   const loop = useCallback(async () => {
-    if (isWebcamActive) {
-      await predict();
-      animationFrameId.current = requestAnimationFrame(loop);
-    }
-  }, [isWebcamActive, predict]);
+    if (!modelRef.current) return;
+    await predict();
+    animationFrameId.current = requestAnimationFrame(loop);
+  }, [predict]);
 
   const onStream = useCallback(
     (stream: MediaStream) => {
       const video = document.querySelector(
         '[data-ai-id="webcam-video-feed"]'
       ) as HTMLVideoElement;
-      if (video) {
-        video.srcObject = stream;
-        videoRef.current = video;
+      if (!video) return;
 
-        if (
-          typeof window.tmImage === "undefined" ||
-          typeof window.tf === "undefined"
-        ) {
-          setStatus("Waiting for libraries to load...");
-          return;
-        }
+      video.srcObject = stream;
+      videoRef.current = video;
 
-        setLoading(true);
-        setStatus("Initializing...");
-
-        const modelURL = URL + "model.json";
-        const metadataURL = URL + "metadata.json";
-
-        setStatus("Loading model...");
-        window.tmImage
-          .load(modelURL, metadataURL)
-          .then((loadedModel: any) => {
-            modelRef.current = loadedModel;
-            setLoading(false);
-            setStatus("Ready");
-            animationFrameId.current = requestAnimationFrame(loop);
-          })
-          .catch((error: any) => {
-            console.error("Error initializing Teachable Machine:", error);
-            setStatus(
-              "Error loading model. Please check permissions and refresh."
-            );
-            toast({
-              variant: "destructive",
-              title: "Initialization Failed",
-              description: "Could not load model or access webcam.",
-            });
-          });
+      if (typeof window.tmImage === "undefined" || typeof window.tf === "undefined") {
+        setStatus("Waiting for libraries to load...");
+        return;
       }
+
+      if (modelRef.current) return; // Don't load model if it's already loaded
+
+      setLoading(true);
+      setStatus("Initializing...");
+
+      const modelURL = URL + "model.json";
+      const metadataURL = URL + "metadata.json";
+
+      setStatus("Loading model...");
+      window.tmImage
+        .load(modelURL, metadataURL)
+        .then((loadedModel: any) => {
+          modelRef.current = loadedModel;
+          setLoading(false);
+          setStatus("Ready");
+          animationFrameId.current = requestAnimationFrame(loop);
+        })
+        .catch((error: any) => {
+          console.error("Error initializing Teachable Machine:", error);
+          setStatus("Error loading model. Please check permissions and refresh.");
+          toast({
+            variant: "destructive",
+            title: "Initialization Failed",
+            description: "Could not load model or access webcam.",
+          });
+          setLoading(false);
+          setIsWebcamActive(false);
+        });
     },
     [loop, toast]
   );
@@ -122,13 +119,22 @@ export default function SignLanguageView() {
     if (window.tf && window.tf.disposeVariables) {
       window.tf.disposeVariables();
     }
+    
+    videoRef.current = null;
+    setPredictions([]);
+    setLoading(false);
+    setStatus("Ready to start");
   }, []);
 
   useEffect(() => {
+    // This is the cleanup function that runs when the component unmounts.
     return () => {
+      if(isWebcamActive) {
+        setIsWebcamActive(false);
+      }
       stopWebcam();
     };
-  }, [stopWebcam]);
+  }, [isWebcamActive, stopWebcam]);
 
   const handleToggleWebcam = () => {
     setIsWebcamActive((prev) => !prev);
@@ -206,7 +212,7 @@ export default function SignLanguageView() {
               </div>
             ) : loading ? (
               <div className="text-center text-muted-foreground py-8">
-                <p>Waiting for model to load...</p>
+                <p>{status}</p>
               </div>
             ) : predictions.length > 0 ? (
               predictions
@@ -224,7 +230,7 @@ export default function SignLanguageView() {
                 ))
             ) : (
               <div className="text-center text-muted-foreground py-8">
-                <p>No gestures detected yet.</p>
+                <p>No gestures detected yet. Point your hand at the camera.</p>
               </div>
             )}
           </CardContent>
