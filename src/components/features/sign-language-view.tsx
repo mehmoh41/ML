@@ -63,9 +63,10 @@ export default function SignLanguageView() {
       animationFrameId.current = null;
     }
     
-    const webcam = webcamRef.current;
-    if (webcam && webcam.stop) {
-      webcam.stop();
+    if (webcamRef.current) {
+      if (typeof webcamRef.current.stop === 'function') {
+        webcamRef.current.stop();
+      }
       webcamRef.current = null;
     }
     
