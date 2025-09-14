@@ -50,6 +50,13 @@ export default function SignLanguageView() {
       if (typeof webcamRef.current.stop === "function") {
         webcamRef.current.stop();
       }
+      if (
+        webcamContainerRef.current &&
+        webcamRef.current.canvas &&
+        webcamContainerRef.current.contains(webcamRef.current.canvas)
+      ) {
+        webcamContainerRef.current.removeChild(webcamRef.current.canvas);
+      }
       webcamRef.current = null;
     }
 
@@ -60,18 +67,13 @@ export default function SignLanguageView() {
       modelRef.current = null;
     }
 
-    if (webcamContainerRef.current) {
-      webcamContainerRef.current.innerHTML = "";
-    }
-
-    if (window.tf && window.tf.disposeVariables) {
+    if (window.tf && typeof window.tf.disposeVariables === "function") {
       window.tf.disposeVariables();
     }
 
     setStatus("Webcam stopped.");
     setPredictions([]);
     setLoading(false);
-    setIsWebcamActive(false);
   }, []);
 
   const predict = useCallback(async () => {
@@ -141,6 +143,7 @@ export default function SignLanguageView() {
         description: "Could not load model or access webcam.",
       });
       stopWebcam();
+      setIsWebcamActive(false);
     }
   }, [toast, loop, stopWebcam]);
 

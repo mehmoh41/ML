@@ -48,13 +48,11 @@ export default function EmotionDetectionView() {
     }
 
     if (webcamRef.current) {
-      const stream = webcamRef.current.canvas?.srcObject;
+      webcamRef.current.stop();
+       const stream = webcamRef.current.canvas?.srcObject;
       if (stream) {
         const tracks = stream.getTracks();
         tracks.forEach((track: MediaStreamTrack) => track.stop());
-      }
-      if (typeof webcamRef.current.stop === "function") {
-        webcamRef.current.stop();
       }
       webcamRef.current = null;
     }
@@ -81,91 +79,89 @@ export default function EmotionDetectionView() {
     setLoading(false);
   }, []);
 
-  useEffect(() => {
-    const predict = async () => {
-      if (!modelRef.current || !webcamRef.current?.canvas) {
-        return;
-      }
-      try {
-        const { pose, posenetOutput } = await modelRef.current.estimatePose(
-          webcamRef.current.canvas
-        );
-        if (!modelRef.current) return;
-        const prediction = await modelRef.current.predict(posenetOutput);
-        setPredictions(prediction);
+  const predict = useCallback(async () => {
+    if (!modelRef.current || !webcamRef.current?.canvas) {
+      return;
+    }
+    try {
+      const { pose, posenetOutput } = await modelRef.current.estimatePose(
+        webcamRef.current.canvas
+      );
+      if (!modelRef.current) return;
+      const prediction = await modelRef.current.predict(posenetOutput);
+      setPredictions(prediction);
 
-        const canvas = canvasRef.current;
-        if (canvas && pose) {
-          const ctx = canvas.getContext("2d");
-          if (ctx) {
-            ctx.drawImage(webcamRef.current.canvas, 0, 0);
-            if (pose && window.tmPose) {
-              window.tmPose.drawKeypoints(pose.keypoints, 0.6, ctx);
-              window.tmPose.drawSkeleton(pose.keypoints, 0.6, ctx);
-            }
+      const canvas = canvasRef.current;
+      if (canvas && pose) {
+        const ctx = canvas.getContext("2d");
+        if (ctx) {
+          ctx.drawImage(webcamRef.current.canvas, 0, 0);
+          if (pose && window.tmPose) {
+            window.tmPose.drawKeypoints(pose.keypoints, 0.6, ctx);
+            window.tmPose.drawSkeleton(pose.keypoints, 0.6, ctx);
           }
         }
-      } catch (error) {
-        console.error("Prediction error:", error);
       }
-    };
+    } catch (error) {
+      console.error("Prediction error:", error);
+    }
+  }, []);
 
-    const loop = async () => {
-      if (webcamRef.current) {
-        webcamRef.current.update();
-        await predict();
-      }
+  const loop = useCallback(async () => {
+    if (webcamRef.current) {
+      webcamRef.current.update();
+      await predict();
+    }
+    animationFrameId.current = requestAnimationFrame(loop);
+  }, [predict]);
+
+  const startWebcam = useCallback(async () => {
+    if (
+      typeof window.tmPose === "undefined" ||
+      typeof window.tf === "undefined"
+    ) {
+      setStatus("Waiting for libraries to load...");
+      setTimeout(() => startWebcam(), 500);
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setStatus("Initializing TensorFlow...");
+      await window.tf.ready();
+
+      setStatus("Loading model...");
+      const modelURL = URL + "model.json";
+      const metadataURL = URL + "metadata.json";
+      modelRef.current = await window.tmPose.load(modelURL, metadataURL);
+
+      setStatus("Initializing webcam...");
+      const size = 400;
+      const flip = true;
+      const newWebcam = new window.tmPose.Webcam(size, size, flip);
+      await newWebcam.setup();
+      await newWebcam.play();
+      webcamRef.current = newWebcam;
+
+      setLoading(false);
+      setStatus("Ready");
+
       animationFrameId.current = requestAnimationFrame(loop);
-    };
+    } catch (error) {
+      console.error("Error initializing Teachable Machine:", error);
+      setStatus("Error loading model. Please check permissions and refresh.");
+      toast({
+        variant: "destructive",
+        title: "Initialization Failed",
+        description: "Could not load model or access webcam.",
+      });
+      setIsWebcamActive(false);
+      setLoading(false);
+      stopWebcam();
+    }
+  }, [toast, stopWebcam, loop]);
 
-    const startWebcam = async () => {
-      if (
-        typeof window.tmPose === "undefined" ||
-        typeof window.tf === "undefined"
-      ) {
-        setStatus("Waiting for libraries to load...");
-        setTimeout(() => startWebcam(), 500);
-        return;
-      }
-
-      try {
-        setLoading(true);
-        setStatus("Initializing TensorFlow...");
-        await window.tf.ready();
-
-        setStatus("Loading model...");
-        const modelURL = URL + "model.json";
-        const metadataURL = URL + "metadata.json";
-        modelRef.current = await window.tmPose.load(modelURL, metadataURL);
-
-        setStatus("Initializing webcam...");
-        const size = 400;
-        const flip = true;
-        const newWebcam = new window.tmPose.Webcam(size, size, flip);
-        await newWebcam.setup();
-        await newWebcam.play();
-        webcamRef.current = newWebcam;
-
-        setLoading(false);
-        setStatus("Ready");
-
-        animationFrameId.current = requestAnimationFrame(loop);
-      } catch (error) {
-        console.error("Error initializing Teachable Machine:", error);
-        setStatus(
-          "Error loading model. Please check permissions and refresh."
-        );
-        toast({
-          variant: "destructive",
-          title: "Initialization Failed",
-          description: "Could not load model or access webcam.",
-        });
-        setIsWebcamActive(false);
-        setLoading(false);
-        stopWebcam();
-      }
-    };
-
+  useEffect(() => {
     if (isWebcamActive) {
       startWebcam();
     } else {
@@ -175,7 +171,7 @@ export default function EmotionDetectionView() {
     return () => {
       stopWebcam();
     };
-  }, [isWebcamActive, toast, stopWebcam]);
+  }, [isWebcamActive, startWebcam, stopWebcam]);
 
   const handleToggleWebcam = useCallback(() => {
     setIsWebcamActive((prev) => !prev);
