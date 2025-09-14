@@ -21,7 +21,7 @@ declare global {
   }
 }
 
-const URL = "https://teachablemachine.withgoogle.com/models/S4v5i_52-/";
+const URL = "https://teachablemachine.withgoogle.com/models/qvTj5wIKh/";
 
 type Prediction = {
   className: string;
@@ -46,7 +46,7 @@ export default function SignLanguageView() {
     }
 
     if (webcamRef.current) {
-       if (typeof webcamRef.current.stop === "function") {
+      if (typeof webcamRef.current.stop === "function") {
         webcamRef.current.stop();
       }
       webcamRef.current = null;
@@ -59,6 +59,11 @@ export default function SignLanguageView() {
       modelRef.current = null;
     }
 
+    const webcamContainer = document.getElementById("webcam-container");
+    if (webcamContainer) {
+      webcamContainer.innerHTML = "";
+    }
+
     if (window.tf && window.tf.disposeVariables) {
       window.tf.disposeVariables();
     }
@@ -68,85 +73,88 @@ export default function SignLanguageView() {
     setLoading(false);
   }, []);
 
-  useEffect(() => {
-    const predict = async () => {
-       if (!modelRef.current || !webcamRef.current?.canvas) {
-        return;
-      }
-      try {
-        const prediction = await modelRef.current.predict(webcamRef.current.canvas);
-        setPredictions(prediction);
-      } catch (error) {
-        console.error("Prediction error:", error);
-      }
-    };
+  const predict = useCallback(async () => {
+    if (!modelRef.current || !webcamRef.current?.canvas) {
+      return;
+    }
+    try {
+      // predict can take in an image, video or canvas html element
+      const prediction = await modelRef.current.predict(
+        webcamRef.current.canvas
+      );
+      setPredictions(prediction);
+    } catch (error) {
+      console.error("Prediction error:", error);
+    }
+  }, []);
 
-    const loop = async () => {
-      if (webcamRef.current) {
-        webcamRef.current.update();
-        await predict();
+  const loop = useCallback(async () => {
+    if (webcamRef.current) {
+      webcamRef.current.update(); // update the webcam frame
+      await predict();
+    }
+    animationFrameId.current = requestAnimationFrame(loop);
+  }, [predict]);
+
+  const startWebcam = useCallback(async () => {
+    if (
+      typeof window.tmImage === "undefined" ||
+      typeof window.tf === "undefined"
+    ) {
+      setStatus("Waiting for libraries to load...");
+      setTimeout(() => startWebcam(), 500);
+      return;
+    }
+    try {
+      setLoading(true);
+      setStatus("Initializing...");
+
+      const modelURL = URL + "model.json";
+      const metadataURL = URL + "metadata.json";
+
+      setStatus("Loading model...");
+      const loadedModel = await window.tmImage.load(modelURL, metadataURL);
+      modelRef.current = loadedModel;
+
+      setStatus("Setting up webcam...");
+      const flip = true; // whether to flip the webcam
+      const newWebcam = new window.tmImage.Webcam(200, 200, flip); // width, height, flip
+      await newWebcam.setup(); // request access to the webcam
+      await newWebcam.play();
+      webcamRef.current = newWebcam;
+
+      const webcamContainer = document.getElementById("webcam-container");
+      if (webcamContainer) {
+        webcamContainer.innerHTML = "";
+        webcamContainer.appendChild(newWebcam.canvas);
       }
+
+      setLoading(false);
+      setStatus("Ready");
       animationFrameId.current = requestAnimationFrame(loop);
-    };
+    } catch (error) {
+      console.error("Error initializing Teachable Machine:", error);
+      setStatus("Error loading model. Please check permissions and refresh.");
+      toast({
+        variant: "destructive",
+        title: "Initialization Failed",
+        description: "Could not load model or access webcam.",
+      });
+      setIsWebcamActive(false); // Turn off the toggle if it fails
+    }
+  }, [toast, loop]);
 
-    const startWebcam = async () => {
-       if (
-        typeof window.tmImage === "undefined" ||
-        typeof window.tf === "undefined"
-      ) {
-        setStatus("Waiting for libraries to load...");
-        setTimeout(() => startWebcam(), 500);
-        return;
-      }
-      try {
-        setLoading(true);
-        setStatus("Initializing...");
-
-        const modelURL = URL + "model.json";
-        const metadataURL = URL + "metadata.json";
-
-        setStatus("Loading model...");
-        modelRef.current = await window.tmImage.load(modelURL, metadataURL);
-        
-        const flip = true;
-        const newWebcam = new window.tmImage.Webcam(200, 200, flip);
-        await newWebcam.setup();
-        await newWebcam.play();
-        webcamRef.current = newWebcam;
-
-        const videoContainer = document.getElementById('webcam-container');
-        if (videoContainer) {
-            videoContainer.innerHTML = '';
-            videoContainer.appendChild(newWebcam.canvas);
-        }
-
-        setLoading(false);
-        setStatus("Ready");
-        animationFrameId.current = requestAnimationFrame(loop);
-      } catch (error) {
-        console.error("Error initializing Teachable Machine:", error);
-        setStatus(
-          "Error loading model. Please check permissions and refresh."
-        );
-        toast({
-          variant: "destructive",
-          title: "Initialization Failed",
-          description: "Could not load model or access webcam.",
-        });
-        setIsWebcamActive(false);
-        stopWebcam();
-      }
-    };
+  useEffect(() => {
     if (isWebcamActive) {
       startWebcam();
     } else {
       stopWebcam();
     }
-
+    // This is a cleanup function that React will run when the component unmounts
     return () => {
       stopWebcam();
     };
-  }, [isWebcamActive, stopWebcam, toast]);
+  }, [isWebcamActive, startWebcam, stopWebcam]);
 
   const handleToggleWebcam = () => {
     setIsWebcamActive((prev) => !prev);
@@ -183,14 +191,11 @@ export default function SignLanguageView() {
             </Button>
           </CardHeader>
           <CardContent className="p-0">
-            <div id="webcam-container" className="relative aspect-square max-w-full overflow-hidden mx-auto bg-black flex items-center justify-center">
-              {!isWebcamActive && !loading && (
-                <div className="absolute z-10 text-center text-white/80 p-4">
-                  <Webcam className="mx-auto h-12 w-12 mb-4" />
-                  <p className="font-medium">{status}</p>
-                </div>
-              )}
-              {loading && isWebcamActive && (
+            <div
+              id="webcam-container"
+              className="relative aspect-square max-w-full overflow-hidden mx-auto bg-black flex items-center justify-center"
+            >
+              {(!isWebcamActive || loading) && (
                 <div className="absolute z-10 text-center text-white/80 p-4">
                   <Hand className="mx-auto h-12 w-12 mb-4" />
                   <p className="font-medium">{status}</p>
