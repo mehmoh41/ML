@@ -15,6 +15,9 @@ export default function WebcamView({ onStream, onStop, enabled = true }: { onStr
             const currentStream = videoRef.current.srcObject as MediaStream;
             currentStream.getTracks().forEach(track => track.stop());
             videoRef.current.srcObject = null;
+            if (onStop) {
+              onStop();
+            }
           }
         return;
       };

@@ -183,13 +183,15 @@ export default function VoiceRecognitionView() {
           </CardHeader>
           <CardContent className="flex flex-col items-center justify-center gap-8 pt-10">
             <div className="relative flex h-48 w-48 items-center justify-center">
-              {isListening && (
+              {isListening && !loading && (
                 <div className="absolute h-full w-full animate-pulse rounded-full bg-primary/20"></div>
               )}
               <div
                 className={`flex h-36 w-36 items-center justify-center rounded-full bg-primary/10 transition-colors`}
               >
-                {isSinging ? (
+                {loading ? (
+                   <Loader2 className="h-16 w-16 text-primary animate-spin" />
+                ) : isSinging ? (
                   <Music className="h-16 w-16 text-primary" />
                 ) : (
                   <User className="h-16 w-16 text-primary" />
@@ -199,7 +201,7 @@ export default function VoiceRecognitionView() {
             <div className="text-center">
               <p className="text-sm text-muted-foreground">Detection Result</p>
               <p className="text-3xl font-bold font-headline text-foreground capitalize">
-                {isListening ? highestPrediction.className : "..."}
+                {isListening && !loading ? highestPrediction.className : "..."}
               </p>
             </div>
           </CardContent>
