@@ -139,13 +139,13 @@ export default function SignLanguageView() {
     }
   }, [loop, toast, stopWebcam]);
   
-  const handleToggleWebcam = () => {
+  const handleToggleWebcam = useCallback(() => {
     if (isWebcamActive) {
       stopWebcam();
     } else {
       startWebcam();
     }
-  };
+  }, [isWebcamActive, startWebcam, stopWebcam]);
   
   useEffect(() => {
     return () => {

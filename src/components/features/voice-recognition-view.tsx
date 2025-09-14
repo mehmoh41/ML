@@ -117,13 +117,13 @@ export default function VoiceRecognitionView() {
     }
   }, [toast]);
 
-  const handleToggleListening = () => {
+  const handleToggleListening = useCallback(() => {
     if (isListening) {
       stopListening();
     } else {
       startListening();
     }
-  };
+  }, [isListening, startListening, stopListening]);
   
   useEffect(() => {
     return () => {

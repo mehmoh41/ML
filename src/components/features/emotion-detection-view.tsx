@@ -146,13 +146,13 @@ export default function EmotionDetectionView() {
     }
   }, [loop, metadataURL, modelURL, toast, stopWebcam]);
 
-  const handleToggleWebcam = () => {
+  const handleToggleWebcam = useCallback(() => {
     if (isWebcamActive) {
       stopWebcam();
     } else {
       startWebcam();
     }
-  };
+  }, [isWebcamActive, startWebcam, stopWebcam]);
   
   useEffect(() => {
     return () => {
