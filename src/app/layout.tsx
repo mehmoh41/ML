@@ -6,7 +6,7 @@ import { MainSidebar } from '@/components/layout/main-sidebar';
 import { SiteHeader } from '@/components/layout/site-header';
 
 export const metadata: Metadata = {
-  title: 'MM Models',
+  title: 'ML Model Showcase',
   description: 'Showcase of Machine Learning Models',
 };
 
