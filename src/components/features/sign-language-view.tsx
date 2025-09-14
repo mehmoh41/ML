@@ -40,43 +40,8 @@ export default function SignLanguageView() {
   const webcamContainerRef = useRef<HTMLDivElement>(null);
   const animationFrameId = useRef<number | null>(null);
 
-  const stopWebcam = useCallback(() => {
-    if (animationFrameId.current) {
-      cancelAnimationFrame(animationFrameId.current);
-      animationFrameId.current = null;
-    }
-
-    if (webcamRef.current) {
-      if (typeof webcamRef.current.stop === "function") {
-        webcamRef.current.stop();
-      }
-      if (
-        webcamContainerRef.current &&
-        webcamRef.current.canvas &&
-        webcamContainerRef.current.contains(webcamRef.current.canvas)
-      ) {
-        webcamContainerRef.current.removeChild(webcamRef.current.canvas);
-      }
-      webcamRef.current = null;
-    }
-
-    if (modelRef.current) {
-      if (typeof modelRef.current.dispose === "function") {
-        modelRef.current.dispose();
-      }
-      modelRef.current = null;
-    }
-
-    if (window.tf && typeof window.tf.disposeVariables === "function") {
-      window.tf.disposeVariables();
-    }
-
-    setStatus("Webcam stopped.");
-    setPredictions([]);
-    setLoading(false);
-  }, []);
-
   const predict = useCallback(async () => {
+    // Check if refs are valid
     if (!modelRef.current || !webcamRef.current?.canvas) {
       return;
     }
@@ -99,69 +64,97 @@ export default function SignLanguageView() {
     animationFrameId.current = requestAnimationFrame(loop);
   }, [predict]);
 
-  const startWebcam = useCallback(async () => {
-    if (
-      typeof window.tmImage === "undefined" ||
-      typeof window.tf === "undefined"
-    ) {
-      setStatus("Waiting for libraries to load...");
-      setTimeout(startWebcam, 500);
-      return;
-    }
-    try {
-      setLoading(true);
-      setStatus("Initializing...");
-
-      const modelURL = URL + "model.json";
-      const metadataURL = URL + "metadata.json";
-
-      setStatus("Loading model...");
-      const loadedModel = await window.tmImage.load(modelURL, metadataURL);
-      modelRef.current = loadedModel;
-
-      setStatus("Setting up webcam...");
-      const flip = true; // whether to flip the webcam
-      const newWebcam = new window.tmImage.Webcam(200, 200, flip); // width, height, flip
-      await newWebcam.setup(); // request access to the webcam
-      await newWebcam.play();
-      webcamRef.current = newWebcam;
-
-      if (webcamContainerRef.current) {
-        webcamContainerRef.current.innerHTML = "";
-        webcamContainerRef.current.appendChild(newWebcam.canvas);
-      }
-
-      setLoading(false);
-      setStatus("Ready");
-      animationFrameId.current = requestAnimationFrame(loop);
-    } catch (error) {
-      console.error("Error initializing Teachable Machine:", error);
-      setStatus("Error loading model. Please check permissions and refresh.");
-      toast({
-        variant: "destructive",
-        title: "Initialization Failed",
-        description: "Could not load model or access webcam.",
-      });
-      stopWebcam();
-      setIsWebcamActive(false);
-    }
-  }, [toast, loop, stopWebcam]);
-
-  useEffect(() => {
-    if (isWebcamActive) {
-      startWebcam();
-    } else {
-      stopWebcam();
-    }
-    
-    return () => {
-      stopWebcam();
-    };
-  }, [isWebcamActive, startWebcam, stopWebcam]);
-
   const handleToggleWebcam = () => {
     setIsWebcamActive((prev) => !prev);
   };
+
+  useEffect(() => {
+    if (!isWebcamActive) {
+      return;
+    }
+
+    let model: any;
+    let webcam: any;
+
+    const init = async () => {
+      if (
+        typeof window.tmImage === "undefined" ||
+        typeof window.tf === "undefined"
+      ) {
+        setStatus("Waiting for libraries to load...");
+        setTimeout(init, 500);
+        return;
+      }
+      try {
+        setLoading(true);
+        setStatus("Initializing...");
+
+        const modelURL = URL + "model.json";
+        const metadataURL = URL + "metadata.json";
+
+        setStatus("Loading model...");
+        model = await window.tmImage.load(modelURL, metadataURL);
+        modelRef.current = model;
+
+        setStatus("Setting up webcam...");
+        const flip = true; // whether to flip the webcam
+        webcam = new window.tmImage.Webcam(200, 200, flip); // width, height, flip
+        await webcam.setup(); // request access to the webcam
+        await webcam.play();
+        webcamRef.current = webcam;
+
+        if (webcamContainerRef.current) {
+          webcamContainerRef.current.innerHTML = "";
+          webcamContainerRef.current.appendChild(webcam.canvas);
+        }
+
+        setLoading(false);
+        setStatus("Ready");
+        animationFrameId.current = requestAnimationFrame(loop);
+      } catch (error) {
+        console.error("Error initializing Teachable Machine:", error);
+        setStatus("Error loading model. Please check permissions and refresh.");
+        toast({
+          variant: "destructive",
+          title: "Initialization Failed",
+          description: "Could not load model or access webcam.",
+        });
+        setIsWebcamActive(false);
+        setLoading(false);
+      }
+    };
+    
+    init();
+
+    return () => {
+      // This is the cleanup function.
+      if (animationFrameId.current) {
+        cancelAnimationFrame(animationFrameId.current);
+        animationFrameId.current = null;
+      }
+      
+      if (webcam) {
+        webcam.stop();
+        if (webcamContainerRef.current && webcamContainerRef.current.contains(webcam.canvas)) {
+          webcamContainerRef.current.removeChild(webcam.canvas);
+        }
+      }
+      
+      if (model) {
+        model.dispose();
+      }
+
+      if (window.tf && window.tf.disposeVariables) {
+        window.tf.disposeVariables();
+      }
+      
+      modelRef.current = null;
+      webcamRef.current = null;
+      setStatus("Ready to start");
+      setPredictions([]);
+      setLoading(false);
+    }
+  }, [isWebcamActive, loop, toast]);
 
   const highestPrediction = predictions.reduce(
     (prev, current) =>

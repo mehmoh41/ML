@@ -37,115 +37,108 @@ export default function VoiceRecognitionView() {
 
   const recognizerRef = useRef<any | null>(null);
 
-  const stopListening = useCallback(() => {
-    if (recognizerRef.current) {
-      if (recognizerRef.current.isListening()) {
-        recognizerRef.current.stopListening();
-      }
-      try {
-        if (typeof recognizerRef.current.delete === "function") {
-          recognizerRef.current.delete();
-        }
-      } catch (error) {
-        console.warn(
-          "Could not delete recognizer, it might have been cleaned up already.",
-          error
-        );
-      }
-      recognizerRef.current = null;
-    }
-    if (window.tf && window.tf.disposeVariables) {
-      window.tf.disposeVariables();
-    }
-    setLoading(false);
-    setIsListening(false);
-    setStatus("Microphone off");
-    setPredictions([]);
+  const handleToggleListening = useCallback(() => {
+    setIsListening((prev) => !prev);
   }, []);
 
-  const startListening = useCallback(async () => {
-    if (
-      typeof window.speechCommands === "undefined" ||
-      typeof window.tf === "undefined"
-    ) {
-      setStatus("Waiting for libraries to load...");
-      setTimeout(() => startListening(), 500);
+  useEffect(() => {
+    if (!isListening) {
       return;
     }
 
-    try {
-      setLoading(true);
-      setStatus("Initializing...");
+    let recognizer: any;
 
-      if (recognizerRef.current) {
-        stopListening();
+    const startListening = async () => {
+      if (
+        typeof window.speechCommands === "undefined" ||
+        typeof window.tf === "undefined"
+      ) {
+        setStatus("Waiting for libraries to load...");
+        setTimeout(() => startListening(), 500);
+        return;
       }
 
-      setStatus("Loading model...");
-      const modelURL = URL + "model.json";
-      const metadataURL = URL + "metadata.json";
+      try {
+        setLoading(true);
+        setStatus("Initializing...");
 
-      const newRecognizer = window.speechCommands.create(
-        "BROWSER_FFT",
-        undefined,
-        modelURL,
-        metadataURL
-      );
-      await newRecognizer.ensureModelLoaded();
-      recognizerRef.current = newRecognizer;
+        setStatus("Loading model...");
+        const modelURL = URL + "model.json";
+        const metadataURL = URL + "metadata.json";
 
-      const recognizer = recognizerRef.current;
-      const classLabels = recognizer.wordLabels();
+        recognizer = window.speechCommands.create(
+          "BROWSER_FFT",
+          undefined,
+          modelURL,
+          metadataURL
+        );
+        await recognizer.ensureModelLoaded();
+        recognizerRef.current = recognizer;
+        
+        const classLabels = recognizer.wordLabels();
 
-      setLoading(false);
-      setStatus("Listening...");
-      setIsListening(true);
-
-      recognizer.listen(
-        (result: { scores: Float32Array }) => {
-          if (recognizerRef.current) {
-            const scores = Array.from(result.scores);
-            const newPredictions = classLabels.map(
-              (label: string, index: number) => ({
-                className: label,
-                probability: scores[index],
-              })
-            );
-            setPredictions(newPredictions);
+        setLoading(false);
+        setStatus("Listening...");
+        
+        recognizer.listen(
+          (result: { scores: Float32Array }) => {
+            if (recognizerRef.current) {
+              const scores = Array.from(result.scores);
+              const newPredictions = classLabels.map(
+                (label: string, index: number) => ({
+                  className: label,
+                  probability: scores[index],
+                })
+              );
+              setPredictions(newPredictions);
+            }
+          },
+          {
+            includeSpectrogram: true,
+            probabilityThreshold: 0.75,
+            invokeCallbackOnNoiseAndUnknown: true,
+            overlapFactor: 0.5,
           }
-        },
-        {
-          includeSpectrogram: true,
-          probabilityThreshold: 0.75,
-          invokeCallbackOnNoiseAndUnknown: true,
-          overlapFactor: 0.5,
-        }
-      );
-    } catch (error) {
-      console.error("Error initializing audio recognition:", error);
-      setStatus("Error loading model. Please check permissions and refresh.");
-      toast({
-        variant: "destructive",
-        title: "Initialization Failed",
-        description: "Could not load model or access microphone.",
-      });
-      stopListening();
-    }
-  }, [stopListening, toast]);
-
-  useEffect(() => {
-    return () => {
-      stopListening();
+        );
+      } catch (error) {
+        console.error("Error initializing audio recognition:", error);
+        setStatus("Error loading model. Please check permissions and refresh.");
+        toast({
+          variant: "destructive",
+          title: "Initialization Failed",
+          description: "Could not load model or access microphone.",
+        });
+        setIsListening(false);
+      }
     };
-  }, [stopListening]);
 
-  const handleToggleListening = useCallback(() => {
-    if (isListening) {
-      stopListening();
-    } else {
-      startListening();
-    }
-  }, [isListening, startListening, stopListening]);
+    startListening();
+
+    return () => {
+      if (recognizer) {
+        if (recognizer.isListening()) {
+          recognizer.stopListening();
+        }
+        try {
+          if (typeof recognizer.delete === "function") {
+            recognizer.delete();
+          }
+        } catch (error) {
+          console.warn(
+            "Could not delete recognizer, it might have been cleaned up already.",
+            error
+          );
+        }
+      }
+      if (window.tf && window.tf.disposeVariables) {
+        window.tf.disposeVariables();
+      }
+      recognizerRef.current = null;
+      setLoading(false);
+      setStatus("Microphone off");
+      setPredictions([]);
+    };
+  }, [isListening, toast]);
 
   const highestPrediction = predictions.reduce(
     (prev, current) =>
