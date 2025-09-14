@@ -1,33 +1,16 @@
 "use client";
 
-import { suggestSignLanguageGestures } from "@/ai/flows/suggest-sign-language-gestures";
 import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
   CardDescription,
-  CardFooter,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import {
-  Form,
-  FormControl,
-  FormDescription,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
-import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { Hand, Loader2, Sparkles, Type, Webcam, Video, VideoOff } from "lucide-react";
+import { Hand, Type, Webcam, Video, VideoOff } from "lucide-react";
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { useForm } from "react-hook-form";
-import { z } from "zod";
-import { Badge } from "../ui/badge";
-import { Label } from "../ui/label";
 import { Progress } from "../ui/progress";
 
 // Extend window to include tmImage
@@ -45,12 +28,6 @@ type Prediction = {
   probability: number;
 };
 
-const formSchema = z.object({
-  desiredCapabilities: z.string().min(10, {
-    message: "Description must be at least 10 characters.",
-  }),
-});
-
 export default function SignLanguageView() {
   const { toast } = useToast();
   const [predictions, setPredictions] = useState<Prediction[]>([]);
@@ -58,22 +35,11 @@ export default function SignLanguageView() {
   const [status, setStatus] = useState("Ready to start");
   const [isWebcamActive, setIsWebcamActive] = useState(false);
   
-  const [suggestedGestures, setSuggestedGestures] = useState<string[] | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [existingGestures, setExistingGestures] = useState<string[]>([]);
-
   const webcamRef = useRef<any | null>(null);
   const modelRef = useRef<any | null>(null);
   const animationFrameId = useRef<number | null>(null);
   const canvasContainerRef = useRef<HTMLDivElement>(null);
   
-  const form = useForm<z.infer<typeof formSchema>>({
-    resolver: zodResolver(formSchema),
-    defaultValues: {
-      desiredCapabilities: "",
-    },
-  });
-
   const predict = useCallback(async () => {
     const model = modelRef.current;
     const webcam = webcamRef.current;
@@ -107,6 +73,14 @@ export default function SignLanguageView() {
         canvasContainerRef.current.innerHTML = '';
     }
 
+    // Explicitly dispose of the model
+    if (modelRef.current) {
+      if (typeof modelRef.current.dispose === 'function') {
+        modelRef.current.dispose();
+      }
+      modelRef.current = null;
+    }
+
     setIsWebcamActive(false);
     setStatus("Webcam stopped.");
     setPredictions([]);
@@ -132,9 +106,6 @@ export default function SignLanguageView() {
         modelRef.current = await window.tmImage.load(modelURL, metadataURL);
       }
       
-      const classLabels = modelRef.current.getClassLabels();
-      setExistingGestures(classLabels);
-
       setStatus("Initializing webcam...");
       const size = 400;
       const flip = true;
@@ -175,13 +146,9 @@ export default function SignLanguageView() {
   };
   
   useEffect(() => {
+    // Return a cleanup function
     return () => {
-      // Full cleanup when the component unmounts
       stopWebcam();
-      if (modelRef.current && modelRef.current.dispose) {
-        modelRef.current.dispose();
-        modelRef.current = null;
-      }
     };
   }, [stopWebcam]);
 
@@ -189,30 +156,6 @@ export default function SignLanguageView() {
     (prev, current) => (prev.probability > current.probability ? prev : current),
     { className: "...", probability: 0 }
   );
-  
-  async function onSubmit(values: z.infer<typeof formSchema>) {
-    setIsSubmitting(true);
-    setSuggestedGestures(null);
-    try {
-      const result = await suggestSignLanguageGestures({
-        existingGestures,
-        desiredCapabilities: values.desiredCapabilities,
-      });
-      setSuggestedGestures(result.suggestedGestures);
-       toast({
-        title: "Suggestions Received!",
-        description: "AI has suggested new gestures to add.",
-      });
-    } catch (error) {
-      toast({
-        variant: "destructive",
-        title: "An error occurred.",
-        description: "Failed to get suggestions from AI.",
-      });
-    } finally {
-      setIsSubmitting(false);
-    }
-  }
 
   return (
     <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
@@ -257,8 +200,10 @@ export default function SignLanguageView() {
             </div>
           </CardContent>
         </Card>
-        
-        <Card className="shadow-lg">
+      </div>
+
+      <div className="lg:col-span-1">
+        <Card className="sticky top-20 shadow-lg">
           <CardHeader>
             <CardTitle>Gesture Probabilities</CardTitle>
             <CardDescription>
@@ -294,73 +239,6 @@ export default function SignLanguageView() {
                 </div>
             )}
           </CardContent>
-        </Card>
-
-      </div>
-
-      <div className="lg:col-span-1">
-        <Card className="sticky top-20 shadow-lg">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Sparkles className="text-accent" />
-              Suggest New Gestures
-            </CardTitle>
-            <CardDescription>
-              Use GenAI to suggest new gestures to expand the model's capabilities based on your needs.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="mb-4">
-              <Label className="font-medium">Current Model Gestures</Label>
-              <div className="mt-2 flex flex-wrap gap-2">
-                {existingGestures.length > 0 ? existingGestures.map(g => <Badge key={g} variant="secondary">{g}</Badge>) : <p className="text-sm text-muted-foreground">Start webcam to load gestures.</p>}
-              </div>
-            </div>
-            <Form {...form}>
-              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-                <FormField
-                  control={form.control}
-                  name="desiredCapabilities"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Desired Capabilities</FormLabel>
-                      <FormControl>
-                        <Textarea
-                          placeholder={`e.g., "I want to add gestures for common questions like 'who', 'what', 'where'."`}
-                          className="resize-none"
-                          {...field}
-                        />
-                      </FormControl>
-                      <FormDescription>
-                        Describe the new signs you want the model to learn.
-                      </FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <Button type="submit" className="w-full" disabled={isSubmitting || existingGestures.length === 0}>
-                  {isSubmitting ? (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  ) : (
-                    <Sparkles className="mr-2 h-4 w-4" />
-                  )}
-                  Get Suggestions
-                </Button>
-              </form>
-            </Form>
-          </CardContent>
-          {suggestedGestures && (
-            <CardFooter className="flex flex-col items-start gap-4 border-t pt-6">
-              <CardTitle className="text-lg">AI Suggestions</CardTitle>
-              <div className="flex flex-wrap gap-2">
-                {suggestedGestures.map((gesture) => (
-                    <Badge key={gesture} variant="default" className="bg-accent text-accent-foreground text-sm py-1 px-3">
-                        {gesture}
-                    </Badge>
-                ))}
-              </div>
-            </CardFooter>
-          )}
         </Card>
       </div>
     </div>
