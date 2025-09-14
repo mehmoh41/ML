@@ -50,6 +50,10 @@ export default function VoiceRecognitionView() {
       }
       recognizerRef.current = null;
     }
+     // Clean up global tf memory
+    if (window.tf && window.tf.disposeVariables) {
+      window.tf.disposeVariables();
+    }
     setLoading(false);
     setIsListening(false);
     setStatus("Microphone off");
@@ -58,8 +62,6 @@ export default function VoiceRecognitionView() {
 
 
   const startListening = useCallback(async () => {
-    if (isListening) return; // Prevent multiple starts
-
     if (typeof window.speechCommands === 'undefined' || typeof window.tf === 'undefined') {
       setStatus("Waiting for libraries to load...");
       setTimeout(() => startListening(), 500);
@@ -124,15 +126,9 @@ export default function VoiceRecognitionView() {
         title: "Initialization Failed",
         description: "Could not load model or access microphone.",
       });
-      // Ensure we are fully stopped on error
-      if (recognizerRef.current) {
-        stopListening();
-      } else {
-        setIsListening(false);
-        setLoading(false);
-      }
+      stopListening();
     }
-  }, [isListening, stopListening, toast]);
+  }, [stopListening, toast]);
   
   // This is the cleanup function that runs when the component unmounts.
   useEffect(() => {

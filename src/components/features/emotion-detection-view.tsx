@@ -88,13 +88,15 @@ export default function EmotionDetectionView() {
     }
     
     // Stop the webcam stream
-    if (webcamRef.current && typeof webcamRef.current.stop === "function") {
+    if (webcamRef.current) {
       const stream = webcamRef.current.canvas?.srcObject;
       if (stream) {
         const tracks = stream.getTracks();
         tracks.forEach((track: MediaStreamTrack) => track.stop());
       }
-      webcamRef.current.stop();
+      if (typeof webcamRef.current.stop === 'function') {
+        webcamRef.current.stop();
+      }
       webcamRef.current = null;
     }
 
@@ -121,11 +123,10 @@ export default function EmotionDetectionView() {
     setStatus("Webcam stopped.");
     setPredictions([]);
     setLoading(false);
+    setIsWebcamActive(false);
   }, []);
 
   const startWebcam = useCallback(async () => {
-    if (isWebcamActive) return; // Prevent multiple starts
-
     if (typeof window.tmPose === "undefined" || typeof window.tf === "undefined") {
       setStatus("Waiting for libraries to load...");
       setTimeout(() => startWebcam(), 500);
@@ -164,7 +165,7 @@ export default function EmotionDetectionView() {
       setIsWebcamActive(false);
       setLoading(false);
     }
-  }, [isWebcamActive, loop, metadataURL, modelURL, toast]);
+  }, [loop, metadataURL, modelURL, toast]);
 
 
   useEffect(() => {
@@ -177,7 +178,6 @@ export default function EmotionDetectionView() {
   const handleToggleWebcam = useCallback(() => {
     if (isWebcamActive) {
       stopWebcam();
-      setIsWebcamActive(false);
     } else {
       startWebcam();
     }
