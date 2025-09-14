@@ -115,9 +115,9 @@ export default function EmotionDetectionView() {
       await window.tf.ready();
       
       setStatus("Loading model...");
+      // Ensure model is loaded only once
       if (!modelRef.current) {
-        const loadedModel = await window.tmPose.load(modelURL, metadataURL);
-        modelRef.current = loadedModel;
+        modelRef.current = await window.tmPose.load(modelURL, metadataURL);
       }
 
       setStatus("Initializing webcam...");
@@ -156,7 +156,12 @@ export default function EmotionDetectionView() {
   
   useEffect(() => {
     return () => {
+      // Full cleanup when the component unmounts
       stopWebcam();
+      if (modelRef.current && modelRef.current.dispose) {
+        modelRef.current.dispose();
+        modelRef.current = null;
+      }
     };
   }, [stopWebcam]);
 

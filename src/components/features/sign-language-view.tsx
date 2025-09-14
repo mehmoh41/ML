@@ -103,7 +103,6 @@ export default function SignLanguageView() {
       webcamRef.current = null;
     }
     
-    // Clear the canvas container
     if (canvasContainerRef.current) {
         canvasContainerRef.current.innerHTML = '';
     }
@@ -130,8 +129,7 @@ export default function SignLanguageView() {
 
       setStatus("Loading model...");
       if (!modelRef.current) {
-        const loadedModel = await window.tmImage.load(modelURL, metadataURL);
-        modelRef.current = loadedModel;
+        modelRef.current = await window.tmImage.load(modelURL, metadataURL);
       }
       
       const classLabels = modelRef.current.getClassLabels();
@@ -177,9 +175,13 @@ export default function SignLanguageView() {
   };
   
   useEffect(() => {
-    // Cleanup on unmount
     return () => {
+      // Full cleanup when the component unmounts
       stopWebcam();
+      if (modelRef.current && modelRef.current.dispose) {
+        modelRef.current.dispose();
+        modelRef.current = null;
+      }
     };
   }, [stopWebcam]);
 

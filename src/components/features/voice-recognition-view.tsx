@@ -62,14 +62,13 @@ export default function VoiceRecognitionView() {
         const modelURL = URL + "model.json";
         const metadataURL = URL + "metadata.json";
 
-        const recognizer = window.speechCommands.create(
+        recognizerRef.current = window.speechCommands.create(
           "BROWSER_FFT",
           undefined,
           modelURL,
           metadataURL
         );
-        await recognizer.ensureModelLoaded();
-        recognizerRef.current = recognizer;
+        await recognizerRef.current.ensureModelLoaded();
       }
       
       const recognizer = recognizerRef.current;
@@ -117,9 +116,14 @@ export default function VoiceRecognitionView() {
   };
   
   useEffect(() => {
-    // Cleanup on unmount
     return () => {
+      // Full cleanup when the component unmounts
       stopListening();
+      if (recognizerRef.current) {
+        // recognizer.delete() is not a function in this version, so we rely on stopping it
+        // and letting garbage collection handle the rest.
+        recognizerRef.current = null;
+      }
     };
   }, [stopListening]);
 
