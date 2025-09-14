@@ -39,18 +39,18 @@ export default function VoiceRecognitionView() {
       if (recognizerRef.current.isListening()) {
         recognizerRef.current.stopListening();
       }
-      // The delete function can throw an error if the model is already gone.
-      // We can safely ignore it.
       try {
-        if (typeof recognizerRef.current.delete === 'function') {
+        if (typeof recognizerRef.current.delete === "function") {
           recognizerRef.current.delete();
         }
       } catch (error) {
-         console.warn("Could not delete recognizer, it might have been cleaned up already.", error);
+        console.warn(
+          "Could not delete recognizer, it might have been cleaned up already.",
+          error
+        );
       }
       recognizerRef.current = null;
     }
-     // Clean up global tf memory
     if (window.tf && window.tf.disposeVariables) {
       window.tf.disposeVariables();
     }
@@ -60,9 +60,11 @@ export default function VoiceRecognitionView() {
     setPredictions([]);
   }, []);
 
-
   const startListening = useCallback(async () => {
-    if (typeof window.speechCommands === 'undefined' || typeof window.tf === 'undefined') {
+    if (
+      typeof window.speechCommands === "undefined" ||
+      typeof window.tf === "undefined"
+    ) {
       setStatus("Waiting for libraries to load...");
       setTimeout(() => startListening(), 500);
       return;
@@ -72,7 +74,6 @@ export default function VoiceRecognitionView() {
       setLoading(true);
       setStatus("Initializing...");
 
-      // Ensure any old recognizer is stopped before creating a new one.
       if (recognizerRef.current) {
         stopListening();
       }
@@ -90,7 +91,7 @@ export default function VoiceRecognitionView() {
       );
       await newRecognizer.ensureModelLoaded();
       recognizerRef.current = newRecognizer;
-      
+
       const recognizer = recognizerRef.current;
       const classLabels = recognizer.wordLabels();
 
@@ -100,13 +101,14 @@ export default function VoiceRecognitionView() {
 
       recognizer.listen(
         (result: { scores: Float32Array }) => {
-          // Check if recognizer is still active before updating state
           if (recognizerRef.current) {
             const scores = Array.from(result.scores);
-            const newPredictions = classLabels.map((label: string, index: number) => ({
-              className: label,
-              probability: scores[index],
-            }));
+            const newPredictions = classLabels.map(
+              (label: string, index: number) => ({
+                className: label,
+                probability: scores[index],
+              })
+            );
             setPredictions(newPredictions);
           }
         },
@@ -114,10 +116,9 @@ export default function VoiceRecognitionView() {
           includeSpectrogram: true,
           probabilityThreshold: 0.75,
           invokeCallbackOnNoiseAndUnknown: true,
-          overlapFactor: 0.50, //
+          overlapFactor: 0.5,
         }
       );
-
     } catch (error) {
       console.error("Error initializing audio recognition:", error);
       setStatus("Error loading model. Please check permissions and refresh.");
@@ -129,8 +130,7 @@ export default function VoiceRecognitionView() {
       stopListening();
     }
   }, [stopListening, toast]);
-  
-  // This is the cleanup function that runs when the component unmounts.
+
   useEffect(() => {
     return () => {
       stopListening();
@@ -146,11 +146,14 @@ export default function VoiceRecognitionView() {
   }, [isListening, startListening, stopListening]);
 
   const highestPrediction = predictions.reduce(
-    (prev, current) => (prev.probability > current.probability ? prev : current),
+    (prev, current) =>
+      prev.probability > current.probability ? prev : current,
     { className: "...", probability: 0 }
   );
-  
-  const isSinging = ['songs', 'qawali'].includes(highestPrediction.className) && highestPrediction.probability > 0.8;
+
+  const isSinging =
+    ["songs", "qawali"].includes(highestPrediction.className) &&
+    highestPrediction.probability > 0.8;
 
   return (
     <div className="grid grid-cols-1 gap-8 md:grid-cols-3">
@@ -166,15 +169,24 @@ export default function VoiceRecognitionView() {
                 The model is analyzing audio from your microphone.
               </CardDescription>
             </div>
-            <Button variant="outline" size="sm" onClick={handleToggleListening} disabled={loading}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleToggleListening}
+              disabled={loading}
+            >
               {isListening ? <MicOff /> : <Mic />}
               <span>{isListening ? "Stop Listening" : "Start Listening"}</span>
             </Button>
           </CardHeader>
           <CardContent className="flex flex-col items-center justify-center gap-8 pt-10">
             <div className="relative flex h-48 w-48 items-center justify-center">
-              {isListening && <div className="absolute h-full w-full animate-pulse rounded-full bg-primary/20"></div>}
-              <div className={`flex h-36 w-36 items-center justify-center rounded-full bg-primary/10 transition-colors`}>
+              {isListening && (
+                <div className="absolute h-full w-full animate-pulse rounded-full bg-primary/20"></div>
+              )}
+              <div
+                className={`flex h-36 w-36 items-center justify-center rounded-full bg-primary/10 transition-colors`}
+              >
                 {isSinging ? (
                   <Music className="h-16 w-16 text-primary" />
                 ) : (
@@ -185,7 +197,7 @@ export default function VoiceRecognitionView() {
             <div className="text-center">
               <p className="text-sm text-muted-foreground">Detection Result</p>
               <p className="text-3xl font-bold font-headline text-foreground capitalize">
-                {isListening ? highestPrediction.className : '...'}
+                {isListening ? highestPrediction.className : "..."}
               </p>
             </div>
           </CardContent>
@@ -216,7 +228,11 @@ export default function VoiceRecognitionView() {
               .map((p) => (
                 <div key={p.className}>
                   <div className="mb-1 flex justify-between">
-                    <span className="font-medium capitalize">{p.className === '_background_noise_' ? 'Background Noise' : p.className}</span>
+                    <span className="font-medium capitalize">
+                      {p.className === "_background_noise_"
+                        ? "Background Noise"
+                        : p.className}
+                    </span>
                     <span className="text-muted-foreground">
                       {(p.probability * 100).toFixed(0)}%
                     </span>

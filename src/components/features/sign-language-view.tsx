@@ -41,49 +41,29 @@ export default function SignLanguageView() {
   const animationFrameId = useRef<number | null>(null);
 
   const onStream = useCallback((stream: MediaStream) => {
-    const video = document.querySelector('[data-ai-id="webcam-video-feed"]') as HTMLVideoElement;
+    const video = document.querySelector(
+      '[data-ai-id="webcam-video-feed"]'
+    ) as HTMLVideoElement;
     if (video) {
-        video.srcObject = stream;
-        videoRef.current = video;
+      video.srcObject = stream;
+      videoRef.current = video;
     }
   }, []);
-
-  const predict = useCallback(async () => {
-    if (!modelRef.current || !videoRef.current) return;
-    try {
-        const prediction = await modelRef.current.predict(videoRef.current);
-        setPredictions(prediction);
-    } catch (error) {
-        console.error("Prediction error:", error);
-    }
-  }, []);
-
-  const loop = useCallback(async () => {
-    if (isWebcamActive) {
-        await predict();
-        animationFrameId.current = requestAnimationFrame(loop);
-    }
-  }, [isWebcamActive, predict]);
-
 
   const stopWebcam = useCallback(() => {
     if (animationFrameId.current) {
       cancelAnimationFrame(animationFrameId.current);
       animationFrameId.current = null;
     }
-    
-    // The video stream is managed by WebcamView, so we don't need to stop it here.
-    
-    // Dispose of the model
+
     if (modelRef.current) {
-        if (typeof modelRef.current.dispose === 'function') {
-            modelRef.current.dispose();
-        }
-        modelRef.current = null;
+      if (typeof modelRef.current.dispose === "function") {
+        modelRef.current.dispose();
+      }
+      modelRef.current = null;
     }
-    
-    // Clean up global tf memory
-    if(window.tf && window.tf.disposeVariables) {
+
+    if (window.tf && window.tf.disposeVariables) {
       window.tf.disposeVariables();
     }
 
@@ -93,47 +73,66 @@ export default function SignLanguageView() {
     setIsWebcamActive(false);
   }, []);
 
+  const predict = useCallback(async () => {
+    if (!modelRef.current || !videoRef.current) return;
+    try {
+      const prediction = await modelRef.current.predict(videoRef.current);
+      setPredictions(prediction);
+    } catch (error) {
+      console.error("Prediction error:", error);
+    }
+  }, []);
+
+  const loop = useCallback(async () => {
+    if (isWebcamActive) {
+      await predict();
+      animationFrameId.current = requestAnimationFrame(loop);
+    }
+  }, [isWebcamActive, predict]);
+
   const startWebcam = useCallback(async () => {
-    if (typeof window.tmImage === "undefined" || typeof window.tf === "undefined") {
-        setStatus("Waiting for libraries to load...");
-        setTimeout(startWebcam, 500);
-        return;
+    if (
+      typeof window.tmImage === "undefined" ||
+      typeof window.tf === "undefined"
+    ) {
+      setStatus("Waiting for libraries to load...");
+      setTimeout(startWebcam, 500);
+      return;
     }
 
     if (!videoRef.current) {
-        setStatus("Waiting for webcam to initialize...");
-        setTimeout(startWebcam, 200);
-        return;
+      setStatus("Waiting for webcam to initialize...");
+      setTimeout(startWebcam, 200);
+      return;
     }
 
     try {
-        setLoading(true);
-        setStatus("Initializing...");
+      setLoading(true);
+      setStatus("Initializing...");
 
-        const modelURL = URL + "model.json";
-        const metadataURL = URL + "metadata.json";
+      const modelURL = URL + "model.json";
+      const metadataURL = URL + "metadata.json";
 
-        setStatus("Loading model...");
-        const loadedModel = await window.tmImage.load(modelURL, metadataURL);
-        modelRef.current = loadedModel;
-        
-        setLoading(false);
-        setStatus("Ready");
-        
-        animationFrameId.current = requestAnimationFrame(loop);
+      setStatus("Loading model...");
+      const loadedModel = await window.tmImage.load(modelURL, metadataURL);
+      modelRef.current = loadedModel;
 
+      setLoading(false);
+      setStatus("Ready");
+
+      animationFrameId.current = requestAnimationFrame(loop);
     } catch (error) {
-        console.error("Error initializing Teachable Machine:", error);
-        setStatus("Error loading model. Please check permissions and refresh.");
-        toast({
-            variant: "destructive",
-            title: "Initialization Failed",
-            description: "Could not load model or access webcam.",
-        });
-        stopWebcam(); // Clean up on error
+      console.error("Error initializing Teachable Machine:", error);
+      setStatus("Error loading model. Please check permissions and refresh.");
+      toast({
+        variant: "destructive",
+        title: "Initialization Failed",
+        description: "Could not load model or access webcam.",
+      });
+      stopWebcam(); // Clean up on error
     }
   }, [loop, stopWebcam, toast]);
-  
+
   const handleToggleWebcam = () => {
     if (isWebcamActive) {
       stopWebcam();
@@ -151,7 +150,8 @@ export default function SignLanguageView() {
   }, [stopWebcam]);
 
   const highestPrediction = predictions.reduce(
-    (prev, current) => (prev.probability > current.probability ? prev : current),
+    (prev, current) =>
+      prev.probability > current.probability ? prev : current,
     { className: "...", probability: 0 }
   );
 
@@ -182,7 +182,7 @@ export default function SignLanguageView() {
           <CardContent className="p-0">
             <div className="relative aspect-square max-w-full overflow-hidden mx-auto bg-black flex items-center justify-center">
               <WebcamView enabled={isWebcamActive} onStream={onStream} />
-               {(loading && isWebcamActive) && (
+              {loading && isWebcamActive && (
                 <div className="absolute z-10 text-center text-white/80 p-4">
                   <Hand className="mx-auto h-12 w-12 mb-4" />
                   <p className="font-medium">{status}</p>

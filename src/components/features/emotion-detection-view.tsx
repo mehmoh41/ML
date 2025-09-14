@@ -44,8 +44,48 @@ export default function EmotionDetectionView() {
   const modelURL = URL + "model.json";
   const metadataURL = URL + "metadata.json";
 
+  const stopWebcam = useCallback(() => {
+    if (animationFrameId.current) {
+      cancelAnimationFrame(animationFrameId.current);
+      animationFrameId.current = null;
+    }
+
+    if (webcamRef.current) {
+      const stream = webcamRef.current.canvas?.srcObject;
+      if (stream) {
+        const tracks = stream.getTracks();
+        tracks.forEach((track: MediaStreamTrack) => track.stop());
+      }
+      if (typeof webcamRef.current.stop === "function") {
+        webcamRef.current.stop();
+      }
+      webcamRef.current = null;
+    }
+
+    const canvas = canvasRef.current;
+    if (canvas) {
+      const ctx = canvas.getContext("2d");
+      ctx?.clearRect(0, 0, canvas.width, canvas.height);
+    }
+
+    if (modelRef.current) {
+      if (typeof modelRef.current.dispose === "function") {
+        modelRef.current.dispose();
+      }
+      modelRef.current = null;
+    }
+
+    if (window.tf && window.tf.disposeVariables) {
+      window.tf.disposeVariables();
+    }
+
+    setStatus("Webcam stopped.");
+    setPredictions([]);
+    setLoading(false);
+    setIsWebcamActive(false);
+  }, []);
+
   const predict = useCallback(async () => {
-    // Ensure refs are still valid
     if (!modelRef.current || !webcamRef.current?.canvas) {
       return;
     }
@@ -61,7 +101,6 @@ export default function EmotionDetectionView() {
         const ctx = canvas.getContext("2d");
         if (ctx) {
           ctx.drawImage(webcamRef.current.canvas, 0, 0);
-          // draw the keypoints and skeleton
           if (pose && window.tmPose) {
             window.tmPose.drawKeypoints(pose.keypoints, 0.6, ctx);
             window.tmPose.drawSkeleton(pose.keypoints, 0.6, ctx);
@@ -81,53 +120,11 @@ export default function EmotionDetectionView() {
     animationFrameId.current = requestAnimationFrame(loop);
   }, [predict]);
 
-  const stopWebcam = useCallback(() => {
-    if (animationFrameId.current) {
-      cancelAnimationFrame(animationFrameId.current);
-      animationFrameId.current = null;
-    }
-    
-    // Stop the webcam stream
-    if (webcamRef.current) {
-      const stream = webcamRef.current.canvas?.srcObject;
-      if (stream) {
-        const tracks = stream.getTracks();
-        tracks.forEach((track: MediaStreamTrack) => track.stop());
-      }
-      if (typeof webcamRef.current.stop === 'function') {
-        webcamRef.current.stop();
-      }
-      webcamRef.current = null;
-    }
-
-    // Clear the canvas
-    const canvas = canvasRef.current;
-    if (canvas) {
-      const ctx = canvas.getContext("2d");
-      ctx?.clearRect(0, 0, canvas.width, canvas.height);
-    }
-    
-    // Dispose of the model
-    if (modelRef.current) {
-        if (typeof modelRef.current.dispose === 'function') {
-            modelRef.current.dispose();
-        }
-        modelRef.current = null;
-    }
-    
-    // Clean up global tf memory
-    if(window.tf && window.tf.disposeVariables) {
-      window.tf.disposeVariables();
-    }
-
-    setStatus("Webcam stopped.");
-    setPredictions([]);
-    setLoading(false);
-    setIsWebcamActive(false);
-  }, []);
-
   const startWebcam = useCallback(async () => {
-    if (typeof window.tmPose === "undefined" || typeof window.tf === "undefined") {
+    if (
+      typeof window.tmPose === "undefined" ||
+      typeof window.tf === "undefined"
+    ) {
       setStatus("Waiting for libraries to load...");
       setTimeout(() => startWebcam(), 500);
       return;
@@ -167,9 +164,7 @@ export default function EmotionDetectionView() {
     }
   }, [loop, metadataURL, modelURL, toast]);
 
-
   useEffect(() => {
-    // This effect handles the cleanup when the component unmounts.
     return () => {
       stopWebcam();
     };
@@ -183,9 +178,9 @@ export default function EmotionDetectionView() {
     }
   }, [isWebcamActive, startWebcam, stopWebcam]);
 
-
   const highestPrediction = predictions.reduce(
-    (prev, current) => (prev.probability > current.probability ? prev : current),
+    (prev, current) =>
+      prev.probability > current.probability ? prev : current,
     { className: "...", probability: 0 }
   );
 
