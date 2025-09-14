@@ -89,7 +89,7 @@ export default function VoiceRecognitionView() {
           includeSpectrogram: true,
           probabilityThreshold: 0.75,
           invokeCallbackOnNoiseAndUnknown: true,
-          overlapFactor: 0.5,
+          overlapFactor: 0.75,
         }
       );
 
