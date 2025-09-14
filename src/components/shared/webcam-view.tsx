@@ -3,13 +3,15 @@
 import { WebcamIcon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
-export default function WebcamView({ onStream, onStop }: { onStream?: (stream: MediaStream) => void, onStop?: () => void }) {
+export default function WebcamView({ onStream, onStop, enabled = true }: { onStream?: (stream: MediaStream) => void, onStop?: () => void, enabled?: boolean }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let stream: MediaStream | null = null;
     const enableWebcam = async () => {
+      if (!enabled) return;
+
       try {
         stream = await navigator.mediaDevices.getUserMedia({
           video: { facingMode: "user" },
@@ -36,7 +38,17 @@ export default function WebcamView({ onStream, onStop }: { onStream?: (stream: M
         onStop();
       }
     };
-  }, [onStream, onStop]);
+  }, [onStream, onStop, enabled]);
+
+  if (!enabled) {
+    return (
+        <div className="relative h-full w-full overflow-hidden bg-black flex flex-col items-center justify-center text-white/80 p-4">
+             <WebcamIcon className="mb-4 h-12 w-12" />
+            <p className="text-lg font-semibold">Webcam Off</p>
+            <p className="text-sm text-center">Enable the webcam to see the live feed.</p>
+        </div>
+    )
+  }
 
   return (
     <div className="relative h-full w-full overflow-hidden bg-black">
