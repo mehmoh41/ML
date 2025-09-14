@@ -1,231 +1,200 @@
 "use client";
 
-import { analyzeAudio } from "@/ai/flows/analyze-audio-for-voice-model";
 import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
   CardDescription,
-  CardFooter,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { useToast } from "@/hooks/use-toast";
-import { Loader2, Mic, Music, Sparkles, Square } from "lucide-react";
-import React, { useRef, useState } from "react";
+import { Mic, MicOff, Loader2, Music, User } from "lucide-react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import { Progress } from "../ui/progress";
 
-type RecordingState = "idle" | "recording" | "stopped" | "analyzing";
-type DetectionResult = "..." | "Singing" | "Not Singing";
+// Extend the window object to include speechCommands
+declare global {
+  interface Window {
+    speechCommands: any;
+    tf: any;
+  }
+}
+
+const URL = "https://teachablemachine.withgoogle.com/models/n1zk7_NFn/";
+
+type Prediction = {
+  className: string;
+  probability: number;
+};
 
 export default function VoiceRecognitionView() {
-  const { toast } = useToast();
-  const [recordingState, setRecordingState] = useState<RecordingState>("idle");
-  const [detectionResult, setDetectionResult] = useState<DetectionResult>("...");
-  const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const chunksRef = useRef<Blob[]>([]);
+  const [predictions, setPredictions] = useState<Prediction[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [status, setStatus] = useState("Ready to start");
+  const [isListening, setIsListening] = useState(false);
 
-  const [aiResult, setAiResult] = useState<{
-    musicPresence: boolean;
-    noiseLevel: string;
-    speechClarity: string;
-    overallQuality: string;
-  } | null>(null);
+  const recognizerRef = useRef<any | null>(null);
 
-  const startRecording = async () => {
-    setRecordingState("recording");
-    setDetectionResult("...");
-    setAiResult(null);
-    setAudioBlob(null);
+  const modelURL = URL + "model.json";
+  const metadataURL = URL + "metadata.json";
+
+  const stopListening = useCallback(() => {
+    if (recognizerRef.current && recognizerRef.current.isListening()) {
+      recognizerRef.current.stopListening();
+    }
+    setIsListening(false);
+    setStatus("Microphone off");
+    setPredictions([]);
+  }, []);
+
+  const startListening = useCallback(async () => {
+    if (typeof window.speechCommands === 'undefined' || typeof window.tf === 'undefined') {
+      setStatus("Waiting for libraries to load...");
+      setTimeout(startListening, 500);
+      return;
+    }
 
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      mediaRecorderRef.current = new MediaRecorder(stream);
-      chunksRef.current = [];
+      setLoading(true);
+      setIsListening(true);
+      setStatus("Initializing...");
 
-      mediaRecorderRef.current.ondataavailable = (event) => {
-        if (event.data.size > 0) {
-          chunksRef.current.push(event.data);
+      if (!recognizerRef.current) {
+        setStatus("Loading model...");
+        const recognizer = window.speechCommands.create(
+          "BROWSER_FFT",
+          undefined,
+          modelURL,
+          metadataURL
+        );
+        await recognizer.ensureModelLoaded();
+        recognizerRef.current = recognizer;
+      }
+      
+      const recognizer = recognizerRef.current;
+      const classLabels = recognizer.wordLabels();
+
+      setLoading(false);
+      setStatus("Listening...");
+
+      recognizer.listen(
+        (result: { scores: Float32Array }) => {
+          const scores = Array.from(result.scores);
+          const newPredictions = classLabels.map((label: string, index: number) => ({
+            className: label,
+            probability: scores[index],
+          }));
+          setPredictions(newPredictions);
+        },
+        {
+          includeSpectrogram: true,
+          probabilityThreshold: 0.75,
+          invokeCallbackOnNoiseAndUnknown: true,
+          overlapFactor: 0.5,
         }
-      };
+      );
 
-      mediaRecorderRef.current.onstop = () => {
-        const blob = new Blob(chunksRef.current, { type: "audio/webm" });
-        setAudioBlob(blob);
-        setRecordingState("stopped");
-        // Simulate local detection
-        setDetectionResult(Math.random() > 0.5 ? "Singing" : "Not Singing");
-        // Stop all media tracks to turn off mic icon in browser tab
-        stream.getTracks().forEach((track) => track.stop());
-      };
-
-      mediaRecorderRef.current.start();
     } catch (error) {
-      console.error("Error accessing microphone:", error);
-      toast({
-        variant: "destructive",
-        title: "Microphone Access Denied",
-        description: "Please allow microphone access in your browser settings.",
-      });
-      setRecordingState("idle");
+      console.error("Error initializing Teachable Machine:", error);
+      setStatus("Error loading model. Please check permissions and refresh.");
+      setIsListening(false);
+      setLoading(false);
+    }
+  }, [metadataURL, modelURL]);
+
+  const handleToggleListening = () => {
+    if (isListening) {
+      stopListening();
+    } else {
+      startListening();
     }
   };
 
-  const stopRecording = () => {
-    if (mediaRecorderRef.current && recordingState === "recording") {
-      mediaRecorderRef.current.stop();
-    }
-  };
+  useEffect(() => {
+    return () => {
+      stopListening();
+    };
+  }, [stopListening]);
 
-  const handleAnalyzeAudio = async () => {
-    if (!audioBlob) return;
-
-    setRecordingState("analyzing");
-    setAiResult(null);
-
-    try {
-      const reader = new FileReader();
-      reader.readAsDataURL(audioBlob);
-      reader.onloadend = async () => {
-        const base64Audio = reader.result as string;
-        const result = await analyzeAudio({ audioDataUri: base64Audio });
-        setAiResult(result);
-        setRecordingState("stopped");
-      };
-    } catch (error) {
-      toast({
-        variant: "destructive",
-        title: "An error occurred.",
-        description: "Failed to analyze audio.",
-      });
-      setRecordingState("stopped");
-    }
-  };
+  const highestPrediction = predictions.reduce(
+    (prev, current) => (prev.probability > current.probability ? prev : current),
+    { className: "...", probability: 0 }
+  );
+  
+  const isSinging = ['songs', 'qawali'].includes(highestPrediction.className) && highestPrediction.probability > 0.8;
 
   return (
     <div className="grid grid-cols-1 gap-8 md:grid-cols-2">
       <Card className="shadow-lg">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Mic className="text-primary" />
-            Voice Recorder
-          </CardTitle>
-          <CardDescription>
-            Record your voice and our model will determine if you're singing.
-          </CardDescription>
+        <CardHeader className="bg-muted/30 flex-row items-center justify-between">
+          <div className="space-y-1.5">
+            <CardTitle className="flex items-center gap-2">
+              <Mic className="text-primary" />
+              Live Audio Recognition
+            </CardTitle>
+            <CardDescription>
+              The model is analyzing audio from your microphone.
+            </CardDescription>
+          </div>
+          <Button variant="outline" size="sm" onClick={handleToggleListening} disabled={loading}>
+            {isListening ? <MicOff /> : <Mic />}
+            <span>{isListening ? "Stop Listening" : "Start Listening"}</span>
+          </Button>
         </CardHeader>
         <CardContent className="flex flex-col items-center justify-center gap-8 pt-10">
           <div className="relative flex h-48 w-48 items-center justify-center">
-            {recordingState === "recording" && (
-              <div className="absolute h-full w-full animate-pulse rounded-full bg-primary/20"></div>
-            )}
-            <div
-              className={`flex h-36 w-36 items-center justify-center rounded-full bg-primary/10 transition-colors ${
-                recordingState === "recording" ? "bg-primary/20" : ""
-              }`}
-            >
-              {detectionResult === "Singing" ? (
+            {isListening && <div className="absolute h-full w-full animate-pulse rounded-full bg-primary/20"></div>}
+            <div className={`flex h-36 w-36 items-center justify-center rounded-full bg-primary/10 transition-colors`}>
+               {isSinging ? (
                 <Music className="h-16 w-16 text-primary" />
               ) : (
-                <Mic className="h-16 w-16 text-primary" />
+                <User className="h-16 w-16 text-primary" />
               )}
             </div>
           </div>
-
           <div className="text-center">
             <p className="text-sm text-muted-foreground">Detection Result</p>
             <p className="text-3xl font-bold font-headline text-foreground">
-              {detectionResult}
+              {isListening ? highestPrediction.className : '...'}
             </p>
           </div>
-
-          {recordingState === "idle" && (
-            <Button size="lg" onClick={startRecording}>
-              <Mic className="mr-2 h-4 w-4" /> Start Recording
-            </Button>
-          )}
-
-          {recordingState === "recording" && (
-            <Button size="lg" variant="destructive" onClick={stopRecording}>
-              <Square className="mr-2 h-4 w-4" /> Stop Recording
-            </Button>
-          )}
-
-          {["stopped", "analyzing"].includes(recordingState) && audioBlob && (
-            <div className="flex gap-4">
-              <Button size="lg" onClick={startRecording}>
-                <Mic className="mr-2 h-4 w-4" /> Record Again
-              </Button>
-              <Button
-                size="lg"
-                variant="outline"
-                onClick={handleAnalyzeAudio}
-                disabled={recordingState === "analyzing"}
-              >
-                {recordingState === "analyzing" ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
-                  <Sparkles className="mr-2 h-4 w-4" />
-                )}
-                Analyze Audio
-              </Button>
-            </div>
-          )}
         </CardContent>
-        {audioBlob && (
-          <CardFooter>
-            <audio controls src={URL.createObjectURL(audioBlob)} className="w-full" />
-          </CardFooter>
-        )}
       </Card>
-
       <Card className="shadow-lg">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Sparkles className="text-accent" />
-            AI Audio Analysis
-          </CardTitle>
+          <CardTitle>Class Probabilities</CardTitle>
           <CardDescription>
-            Get a detailed quality analysis of your recorded audio using GenAI.
+            Confidence scores for each detected audio class.
           </CardDescription>
         </CardHeader>
-        <CardContent className="flex h-[400px] flex-col items-center justify-center text-center">
-          {recordingState === "analyzing" && (
-            <div className="flex flex-col items-center gap-4">
-              <Loader2 className="h-12 w-12 animate-spin text-primary" />
-              <p className="text-lg font-medium">Analyzing audio...</p>
-              <p className="text-muted-foreground">This may take a moment.</p>
+        <CardContent className="space-y-4">
+          {!isListening ? (
+            <div className="text-center text-muted-foreground py-8">
+              <p>{status}</p>
+              {!loading && <p>Start listening to see predictions.</p>}
             </div>
-          )}
-          {!aiResult && recordingState !== "analyzing" && (
-             <div className="flex flex-col items-center gap-2 text-center text-muted-foreground">
-                <Sparkles className="h-12 w-12"/>
-                <p>Record and then click "Analyze Audio"</p>
-                <p className="text-sm">to see the AI analysis here.</p>
+          ) : loading ? (
+            <div className="text-center text-muted-foreground py-8 flex items-center justify-center gap-2">
+              <Loader2 className="animate-spin" />
+              <p>Loading model...</p>
             </div>
-          )}
-          {aiResult && (
-            <div className="w-full space-y-6 text-left">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Overall Quality</p>
-                <p className="text-2xl font-bold capitalize text-primary font-headline">{aiResult.overallQuality}</p>
-              </div>
-              <div className="space-y-4">
-                 <div className="flex items-center justify-between">
-                  <span className="font-medium">Music Present</span>
-                  <span className={`font-semibold ${aiResult.musicPresence ? 'text-primary' : 'text-muted-foreground'}`}>
-                    {aiResult.musicPresence ? "Yes" : "No"}
-                  </span>
+          ) : predictions.length > 0 ? (
+            predictions
+              .sort((a, b) => b.probability - a.probability)
+              .map((p) => (
+                <div key={p.className}>
+                  <div className="mb-1 flex justify-between">
+                    <span className="font-medium capitalize">{p.className}</span>
+                    <span className="text-muted-foreground">
+                      {(p.probability * 100).toFixed(0)}%
+                    </span>
+                  </div>
+                  <Progress value={p.probability * 100} />
                 </div>
-                <div className="flex items-center justify-between">
-                  <span className="font-medium">Noise Level</span>
-                  <span className="font-semibold capitalize">{aiResult.noiseLevel}</span>
-                </div>
-                 <div className="flex items-center justify-between">
-                  <span className="font-medium">Speech Clarity</span>
-                  <span className="font-semibold capitalize">{aiResult.speechClarity}</span>
-                </div>
-              </div>
+              ))
+          ) : (
+            <div className="text-center text-muted-foreground py-8">
+              <p>No audio detected yet.</p>
             </div>
           )}
         </CardContent>
