@@ -2,6 +2,7 @@
 
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
 
 const titles: { [key: string]: string } = {
   "/emotion-detection": "Emotion Detection",
@@ -11,7 +12,11 @@ const titles: { [key: string]: string } = {
 
 export function SiteHeader() {
   const pathname = usePathname();
-  const title = titles[pathname] ?? "MM models";
+  const [title, setTitle] = useState("MM models");
+
+  useEffect(() => {
+    setTitle(titles[pathname] ?? "MM models");
+  }, [pathname]);
 
   return (
     <header className="sticky top-0 z-10 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
