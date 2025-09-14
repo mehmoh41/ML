@@ -64,6 +64,7 @@ export default function SignLanguageView() {
   const webcamRef = useRef<any | null>(null);
   const modelRef = useRef<any | null>(null);
   const animationFrameId = useRef<number | null>(null);
+  const canvasContainerRef = useRef<HTMLDivElement>(null);
   
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -98,10 +99,12 @@ export default function SignLanguageView() {
     if (webcam && webcam.stop) {
       webcam.stop();
     }
-    const canvas = document.getElementById('webcam-canvas-sl');
-    if (canvas) {
-        (canvas.parentNode as HTMLElement)?.removeChild(canvas);
+    
+    // Clear the canvas container
+    if (canvasContainerRef.current) {
+        canvasContainerRef.current.innerHTML = '';
     }
+
     webcamRef.current = null;
     animationFrameId.current = null;
     setIsWebcamActive(false);
@@ -139,11 +142,9 @@ export default function SignLanguageView() {
       await newWebcam.play();
       webcamRef.current = newWebcam;
       
-      const canvasContainer = document.getElementById('webcam-container-sl');
-      if (canvasContainer) {
-          newWebcam.canvas.id = 'webcam-canvas-sl';
-          canvasContainer.innerHTML = ''; // Clear previous canvas if any
-          canvasContainer.appendChild(newWebcam.canvas);
+      if (canvasContainerRef.current) {
+          canvasContainerRef.current.innerHTML = ''; // Clear previous canvas if any
+          canvasContainerRef.current.appendChild(newWebcam.canvas);
       }
       
       setLoading(false);
@@ -162,7 +163,7 @@ export default function SignLanguageView() {
       setIsWebcamActive(false);
       setLoading(false);
     }
-  }, [toast]);
+  }, [loop, toast]);
   
   const handleToggleWebcam = () => {
     if (isWebcamActive) {
@@ -236,7 +237,7 @@ export default function SignLanguageView() {
                         {!isWebcamActive && !loading && <p className="text-sm">Click "Start Webcam" to begin.</p>}
                     </div>
                 )}
-                <div id="webcam-container-sl" className="h-full w-full flex items-center justify-center [&>canvas]:h-full [&>canvas]:w-full [&>canvas]:object-contain" />
+                <div ref={canvasContainerRef} className="h-full w-full flex items-center justify-center [&>canvas]:h-full [&>canvas]:w-full [&>canvas]:object-contain" />
                 {isWebcamActive && predictions.length > 0 && (
                     <div className="absolute bottom-4 left-4 flex items-center gap-4 rounded-lg bg-background/80 p-4 shadow-md backdrop-blur-sm">
                         <Type className="h-10 w-10 text-primary" />
@@ -360,3 +361,5 @@ export default function SignLanguageView() {
     </div>
   );
 }
+
+    
