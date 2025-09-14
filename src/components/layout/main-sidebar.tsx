@@ -7,13 +7,8 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
-  SidebarMenuSub,
-  SidebarMenuSubButton,
-  SidebarMenuSubItem,
-  SidebarSeparator,
 } from "@/components/ui/sidebar";
-import { Hand, Home, Mic, Settings, Smile } from "lucide-react";
-import Link from "next/link";
+import { Hand, Mic, Smile } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { Logo } from "../shared/logo";
 
@@ -37,10 +32,10 @@ export function MainSidebar() {
               isActive={isActive("/emotion-detection")}
               tooltip="Emotion Detection"
             >
-              <Link href="/emotion-detection">
+              <a href="/emotion-detection">
                 <Smile />
                 <span>Emotion Detection</span>
-              </Link>
+              </a>
             </SidebarMenuButton>
           </SidebarMenuItem>
           <SidebarMenuItem>
@@ -49,10 +44,10 @@ export function MainSidebar() {
               isActive={isActive("/sign-language")}
               tooltip="Sign Language"
             >
-              <Link href="/sign-language">
+              <a href="/sign-language">
                 <Hand />
                 <span>Sign Language</span>
-              </Link>
+              </a>
             </SidebarMenuButton>
           </SidebarMenuItem>
           <SidebarMenuItem>
@@ -61,10 +56,10 @@ export function MainSidebar() {
               isActive={isActive("/voice-recognition")}
               tooltip="Voice Recognition"
             >
-              <Link href="/voice-recognition">
+              <a href="/voice-recognition">
                 <Mic />
                 <span>Voice Recognition</span>
-              </Link>
+              </a>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
