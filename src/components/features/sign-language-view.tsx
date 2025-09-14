@@ -67,19 +67,23 @@ export default function SignLanguageView() {
       animationFrameId.current = null;
     }
     
-    if (webcamRef.current && typeof webcamRef.current.stop === 'function') {
-      webcamRef.current.stop();
+    if (webcamRef.current) {
+        if (typeof webcamRef.current.stop === 'function') {
+            webcamRef.current.stop();
+        }
+        webcamRef.current = null;
     }
-    webcamRef.current = null;
     
     if (canvasContainerRef.current) {
         canvasContainerRef.current.innerHTML = '';
     }
 
-    if (modelRef.current && typeof modelRef.current.dispose === 'function') {
-      modelRef.current.dispose();
+    if (modelRef.current) {
+      if (typeof modelRef.current.dispose === 'function') {
+        modelRef.current.dispose();
+      }
+      modelRef.current = null;
     }
-    modelRef.current = null;
 
     setIsWebcamActive(false);
     setStatus("Webcam stopped.");
@@ -89,7 +93,7 @@ export default function SignLanguageView() {
   const startWebcam = useCallback(async () => {
     if (typeof window.tmImage === 'undefined' || typeof window.tf === 'undefined') {
       setStatus("Waiting for libraries to load...");
-      setTimeout(startWebcam, 500);
+      setTimeout(() => startWebcam(), 500);
       return;
     }
 
