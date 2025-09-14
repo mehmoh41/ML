@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { Mic, MicOff, Loader2, Music, User } from "lucide-react";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { Progress } from "../ui/progress";
 
 // Extend window to include speechCommands and tf
@@ -35,6 +35,11 @@ export default function VoiceRecognitionView() {
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState("Ready to start");
   const [isListening, setIsListening] = useState(false);
+  const isListeningRef = useRef(isListening);
+
+  useEffect(() => {
+    isListeningRef.current = isListening;
+  }, [isListening]);
 
   const handleToggleListening = () => {
     setIsListening((prev) => !prev);
@@ -80,6 +85,7 @@ export default function VoiceRecognitionView() {
         
         recognizer.listen(
           (result: { scores: Float32Array }) => {
+            if (!isListeningRef.current) return;
             const scores = Array.from(result.scores);
             const newPredictions = classLabels.map(
               (label: string, index: number) => ({
@@ -93,7 +99,7 @@ export default function VoiceRecognitionView() {
             includeSpectrogram: true,
             probabilityThreshold: 0.75,
             invokeCallbackOnNoiseAndUnknown: true,
-            overlapFactor: 0.5,
+            overlapFactor: 0.75,
           }
         );
       } catch (error) {
@@ -115,6 +121,9 @@ export default function VoiceRecognitionView() {
         if (recognizer.isListening()) {
           recognizer.stopListening();
         }
+        // In some versions of the library, recognizer might not have a `delete` or `dispose` method
+        // for the model itself, as it's managed internally.
+        // We rely on TF.js garbage collection here.
       }
       if (window.tf && window.tf.disposeVariables) {
         window.tf.disposeVariables();
@@ -130,11 +139,7 @@ export default function VoiceRecognitionView() {
       prev.probability > current.probability ? prev : current,
     { className: "...", probability: 0 }
   );
-
-  const isSinging =
-    ["songs", "qawali"].includes(highestPrediction.className) &&
-    highestPrediction.probability > 0.8;
-
+  
   return (
     <div className="grid grid-cols-1 gap-8 md:grid-cols-3">
       <div className="md:col-span-2">
@@ -183,7 +188,7 @@ export default function VoiceRecognitionView() {
             <div className="text-center">
               <p className="text-sm text-muted-foreground">Detection Result</p>
               <p className="text-3xl font-bold font-headline text-foreground capitalize">
-                {isListening && !loading ? highestPrediction.className : "..."}
+                {isListening && !loading && predictions.length > 0 ? highestPrediction.className : "..."}
               </p>
             </div>
           </CardContent>
@@ -228,7 +233,7 @@ export default function VoiceRecognitionView() {
               ))
           ) : (
             <div className="text-center text-muted-foreground py-8">
-              <p>No audio detected yet.</p>
+              <p>Listening...</p>
             </div>
           )}
         </CardContent>
