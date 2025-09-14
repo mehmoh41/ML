@@ -11,12 +11,18 @@ import {
 import { Hand, Mic, Smile } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { Logo } from "../shared/logo";
+import { useEffect, useState } from "react";
 
 export function MainSidebar() {
   const pathname = usePathname();
+  const [activePath, setActivePath] = useState<string | null>(null);
+
+  useEffect(() => {
+    setActivePath(pathname);
+  }, [pathname]);
 
   const isActive = (path: string) => {
-    return pathname === path;
+    return activePath === path;
   };
 
   return (
