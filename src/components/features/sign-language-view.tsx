@@ -36,7 +36,6 @@ export default function SignLanguageView() {
   const [isWebcamActive, setIsWebcamActive] = useState(false);
 
   const webcamContainerRef = useRef<HTMLDivElement>(null);
-  const animationFrameId = useRef<number | null>(null);
 
   const handleToggleWebcam = () => {
     setIsWebcamActive((prev) => !prev);
@@ -49,6 +48,7 @@ export default function SignLanguageView() {
 
     let model: any;
     let webcam: any;
+    let animationFrameId: number | null = null;
 
     const init = async () => {
       if (
@@ -84,14 +84,14 @@ export default function SignLanguageView() {
         setStatus("Ready");
 
         const loop = async () => {
-          if (!webcam) return;
-          webcam.update(); // update the webcam frame
+          if (!webcam || !model) return;
+          webcam.update();
           const prediction = await model.predict(webcam.canvas);
           setPredictions(prediction);
-          animationFrameId.current = requestAnimationFrame(loop);
+          animationFrameId = requestAnimationFrame(loop);
         };
 
-        animationFrameId.current = requestAnimationFrame(loop);
+        animationFrameId = requestAnimationFrame(loop);
 
       } catch (error) {
         console.error("Error initializing Teachable Machine:", error);
@@ -109,10 +109,8 @@ export default function SignLanguageView() {
     init();
 
     return () => {
-      // This is the cleanup function.
-      if (animationFrameId.current) {
-        cancelAnimationFrame(animationFrameId.current);
-        animationFrameId.current = null;
+      if (animationFrameId) {
+        cancelAnimationFrame(animationFrameId);
       }
       
       if (webcam) {

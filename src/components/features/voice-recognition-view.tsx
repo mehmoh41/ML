@@ -35,8 +35,6 @@ export default function VoiceRecognitionView() {
   const [status, setStatus] = useState("Ready to start");
   const [isListening, setIsListening] = useState(false);
 
-  const recognizerRef = useRef<any | null>(null);
-
   const handleToggleListening = useCallback(() => {
     setIsListening((prev) => !prev);
   }, []);
@@ -73,7 +71,6 @@ export default function VoiceRecognitionView() {
           metadataURL
         );
         await recognizer.ensureModelLoaded();
-        recognizerRef.current = recognizer;
         
         const classLabels = recognizer.wordLabels();
 
@@ -82,7 +79,7 @@ export default function VoiceRecognitionView() {
         
         recognizer.listen(
           (result: { scores: Float32Array }) => {
-            if (recognizerRef.current) {
+            if (recognizer) {
               const scores = Array.from(result.scores);
               const newPredictions = classLabels.map(
                 (label: string, index: number) => ({
@@ -119,21 +116,10 @@ export default function VoiceRecognitionView() {
         if (recognizer.isListening()) {
           recognizer.stopListening();
         }
-        try {
-          if (typeof recognizer.delete === "function") {
-            recognizer.delete();
-          }
-        } catch (error) {
-          console.warn(
-            "Could not delete recognizer, it might have been cleaned up already.",
-            error
-          );
-        }
       }
       if (window.tf && window.tf.disposeVariables) {
         window.tf.disposeVariables();
       }
-      recognizerRef.current = null;
       setLoading(false);
       setStatus("Microphone off");
       setPredictions([]);

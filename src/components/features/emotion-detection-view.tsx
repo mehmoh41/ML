@@ -37,7 +37,6 @@ export default function EmotionDetectionView() {
   const [isWebcamActive, setIsWebcamActive] = useState(false);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const animationFrameId = useRef<number | null>(null);
 
   const handleToggleWebcam = () => {
     setIsWebcamActive((prev) => !prev);
@@ -50,6 +49,7 @@ export default function EmotionDetectionView() {
 
     let model: any;
     let webcam: any;
+    let animationFrameId: number | null = null;
 
     const init = async () => {
       if (
@@ -82,7 +82,7 @@ export default function EmotionDetectionView() {
         setStatus("Ready");
 
         const loop = async () => {
-          if (!webcam) return;
+          if (!webcam || !model) return;
           webcam.update();
 
           const { pose, posenetOutput } = await model.estimatePose(
@@ -102,10 +102,10 @@ export default function EmotionDetectionView() {
               }
             }
           }
-          animationFrameId.current = requestAnimationFrame(loop);
+          animationFrameId = requestAnimationFrame(loop);
         };
         
-        animationFrameId.current = requestAnimationFrame(loop);
+        animationFrameId = requestAnimationFrame(loop);
       } catch (error) {
         console.error("Error initializing Teachable Machine:", error);
         setStatus("Error loading model. Please check permissions and refresh.");
@@ -122,18 +122,12 @@ export default function EmotionDetectionView() {
     init();
 
     return () => {
-      if (animationFrameId.current) {
-        cancelAnimationFrame(animationFrameId.current);
-        animationFrameId.current = null;
+      if (animationFrameId) {
+        cancelAnimationFrame(animationFrameId);
       }
       
       if (webcam) {
         webcam.stop();
-         const stream = webcam.canvas?.srcObject;
-        if (stream) {
-          const tracks = stream.getTracks();
-          tracks.forEach((track: MediaStreamTrack) => track.stop());
-        }
       }
       
       if (model) {
