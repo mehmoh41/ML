@@ -10,9 +10,10 @@ import {
 } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { Mic, MicOff, Loader2, Music, User } from "lucide-react";
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Progress } from "../ui/progress";
 
+// Extend window to include speechCommands and tf
 declare global {
   interface Window {
     speechCommands: any;
@@ -26,7 +27,7 @@ type Prediction = {
 };
 
 // URL to your Teachable Machine model
-const URL = "https://teachablemachine.withgoogle.com/models/VEp_82G92/";
+const URL = "https://teachablemachine.withgoogle.com/models/n1zk7_NFn/";
 
 export default function VoiceRecognitionView() {
   const { toast } = useToast();
@@ -35,9 +36,9 @@ export default function VoiceRecognitionView() {
   const [status, setStatus] = useState("Ready to start");
   const [isListening, setIsListening] = useState(false);
 
-  const handleToggleListening = useCallback(() => {
+  const handleToggleListening = () => {
     setIsListening((prev) => !prev);
-  }, []);
+  };
 
   useEffect(() => {
     if (!isListening) {
@@ -46,13 +47,13 @@ export default function VoiceRecognitionView() {
 
     let recognizer: any;
 
-    const startListening = async () => {
+    const init = async () => {
       if (
         typeof window.speechCommands === "undefined" ||
         typeof window.tf === "undefined"
       ) {
         setStatus("Waiting for libraries to load...");
-        setTimeout(() => startListening(), 500);
+        setTimeout(init, 500);
         return;
       }
 
@@ -60,10 +61,10 @@ export default function VoiceRecognitionView() {
         setLoading(true);
         setStatus("Initializing...");
 
-        setStatus("Loading model...");
         const modelURL = URL + "model.json";
         const metadataURL = URL + "metadata.json";
 
+        setStatus("Loading model...");
         recognizer = window.speechCommands.create(
           "BROWSER_FFT",
           undefined,
@@ -79,16 +80,14 @@ export default function VoiceRecognitionView() {
         
         recognizer.listen(
           (result: { scores: Float32Array }) => {
-            if (recognizer) {
-              const scores = Array.from(result.scores);
-              const newPredictions = classLabels.map(
-                (label: string, index: number) => ({
-                  className: label,
-                  probability: scores[index],
-                })
-              );
-              setPredictions(newPredictions);
-            }
+            const scores = Array.from(result.scores);
+            const newPredictions = classLabels.map(
+              (label: string, index: number) => ({
+                className: label,
+                probability: scores[index],
+              })
+            );
+            setPredictions(newPredictions);
           },
           {
             includeSpectrogram: true,
@@ -109,7 +108,7 @@ export default function VoiceRecognitionView() {
       }
     };
 
-    startListening();
+    init();
 
     return () => {
       if (recognizer) {
@@ -170,8 +169,12 @@ export default function VoiceRecognitionView() {
               >
                 {loading ? (
                    <Loader2 className="h-16 w-16 text-primary animate-spin" />
-                ) : isSinging ? (
-                  <Music className="h-16 w-16 text-primary" />
+                ) : isListening && predictions.length > 0 ? (
+                    highestPrediction.className === "Singing" ? (
+                    <Music className="h-16 w-16 text-primary" />
+                    ) : (
+                    <User className="h-16 w-16 text-primary" />
+                    )
                 ) : (
                   <User className="h-16 w-16 text-primary" />
                 )}
