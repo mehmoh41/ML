@@ -52,14 +52,6 @@ export default function SignLanguageView() {
       }
     }
   }, []);
-  
-  const loop = useCallback(async () => {
-    if (webcamRef.current) {
-        webcamRef.current.update();
-        await predict();
-        animationFrameId.current = requestAnimationFrame(loop);
-    }
-  }, [predict]);
 
   const stopWebcam = useCallback(() => {
     if (animationFrameId.current) {
@@ -89,6 +81,14 @@ export default function SignLanguageView() {
     setStatus("Webcam stopped.");
     setPredictions([]);
   }, []);
+  
+  const loop = useCallback(async () => {
+    if (webcamRef.current) {
+        webcamRef.current.update();
+        await predict();
+        animationFrameId.current = requestAnimationFrame(loop);
+    }
+  }, [predict]);
 
   const startWebcam = useCallback(async () => {
     if (typeof window.tmImage === 'undefined' || typeof window.tf === 'undefined') {
@@ -137,7 +137,7 @@ export default function SignLanguageView() {
       stopWebcam();
       setLoading(false);
     }
-  }, [loop, toast, stopWebcam]);
+  }, [loop, stopWebcam, toast]);
   
   const handleToggleWebcam = useCallback(() => {
     if (isWebcamActive) {

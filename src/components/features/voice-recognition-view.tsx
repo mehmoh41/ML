@@ -39,16 +39,14 @@ export default function VoiceRecognitionView() {
     if (recognizerRef.current && recognizerRef.current.isListening()) {
       recognizerRef.current.stopListening();
     }
-    // Attempt to delete the recognizer to free up resources.
-    // Note: The 'delete' method may not exist on all versions or types of recognizers.
     if (recognizerRef.current && typeof recognizerRef.current.delete === 'function') {
       try {
         recognizerRef.current.delete();
       } catch (error) {
         console.error("Error deleting recognizer:", error);
       }
-      recognizerRef.current = null;
     }
+    recognizerRef.current = null;
     setIsListening(false);
     setStatus("Microphone off");
     setPredictions([]);

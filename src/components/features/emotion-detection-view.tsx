@@ -70,14 +70,6 @@ export default function EmotionDetectionView() {
     }
   }, []);
 
-  const loop = useCallback(async () => {
-    if (webcamRef.current) {
-      webcamRef.current.update();
-      await predict();
-      animationFrameId.current = requestAnimationFrame(loop);
-    }
-  }, [predict]);
-
   const stopWebcam = useCallback(() => {
     if (animationFrameId.current) {
       cancelAnimationFrame(animationFrameId.current);
@@ -103,6 +95,14 @@ export default function EmotionDetectionView() {
     setStatus("Webcam stopped.");
     setPredictions([]);
   }, []);
+
+  const loop = useCallback(async () => {
+    if (webcamRef.current) {
+      webcamRef.current.update();
+      await predict();
+      animationFrameId.current = requestAnimationFrame(loop);
+    }
+  }, [predict]);
   
   const startWebcam = useCallback(async () => {
     if (typeof window.tmPose === 'undefined' || typeof window.tf === 'undefined') {
@@ -144,7 +144,7 @@ export default function EmotionDetectionView() {
       stopWebcam();
       setLoading(false);
     }
-  }, [loop, metadataURL, modelURL, toast, stopWebcam]);
+  }, [loop, metadataURL, modelURL, stopWebcam, toast]);
 
   const handleToggleWebcam = useCallback(() => {
     if (isWebcamActive) {
