@@ -39,6 +39,12 @@ export default function VoiceRecognitionView() {
     if (recognizerRef.current && recognizerRef.current.isListening()) {
       recognizerRef.current.stopListening();
     }
+    // Attempt to delete the recognizer to free up resources.
+    // Note: The 'delete' method may not exist on all versions or types of recognizers.
+    if (recognizerRef.current && typeof recognizerRef.current.delete === 'function') {
+      recognizerRef.current.delete();
+      recognizerRef.current = null;
+    }
     setIsListening(false);
     setStatus("Microphone off");
     setPredictions([]);
@@ -117,13 +123,7 @@ export default function VoiceRecognitionView() {
   
   useEffect(() => {
     return () => {
-      // Full cleanup when the component unmounts
       stopListening();
-      if (recognizerRef.current) {
-        // recognizer.delete() is not a function in this version, so we rely on stopping it
-        // and letting garbage collection handle the rest.
-        recognizerRef.current = null;
-      }
     };
   }, [stopListening]);
 

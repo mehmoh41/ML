@@ -106,8 +106,7 @@ export default function SignLanguageView() {
       const metadataURL = URL + "metadata.json";
 
       setStatus("Loading model...");
-      const loadedModel = await window.tmImage.load(modelURL, metadataURL);
-      modelRef.current = loadedModel;
+      modelRef.current = await window.tmImage.load(modelURL, metadataURL);
       
       setStatus("Initializing webcam...");
       const size = 400;
@@ -149,7 +148,6 @@ export default function SignLanguageView() {
   };
   
   useEffect(() => {
-    // Return a cleanup function
     return () => {
       stopWebcam();
     };

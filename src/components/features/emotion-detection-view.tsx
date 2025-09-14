@@ -45,9 +45,10 @@ export default function EmotionDetectionView() {
   const modelURL = URL + "model.json";
   const metadataURL = URL + "metadata.json";
 
-  const predict = useCallback(async (webcam: any) => {
+  const predict = useCallback(async () => {
     const model = modelRef.current;
-    if (model && webcam.canvas) {
+    const webcam = webcamRef.current;
+    if (model && webcam?.canvas) {
       try {
         const { pose, posenetOutput } = await model.estimatePose(webcam.canvas);
         const prediction = await model.predict(posenetOutput);
@@ -71,10 +72,9 @@ export default function EmotionDetectionView() {
   }, []);
 
   const loop = useCallback(async () => {
-    const webcam = webcamRef.current;
-    if (webcam) {
-      webcam.update();
-      await predict(webcam);
+    if (webcamRef.current) {
+      webcamRef.current.update();
+      await predict();
       animationFrameId.current = requestAnimationFrame(loop);
     }
   }, [predict]);
@@ -108,7 +108,7 @@ export default function EmotionDetectionView() {
   const startWebcam = useCallback(async () => {
     if (typeof window.tmPose === 'undefined' || typeof window.tf === 'undefined') {
       setStatus("Waiting for libraries to load...");
-      setTimeout(startWebcam, 500); 
+      setTimeout(() => startWebcam(), 500); 
       return;
     }
 
@@ -119,9 +119,7 @@ export default function EmotionDetectionView() {
       await window.tf.ready();
       
       setStatus("Loading model...");
-      const loadedModel = await window.tmPose.load(modelURL, metadataURL);
-      modelRef.current = loadedModel;
-
+      modelRef.current = await window.tmPose.load(modelURL, metadataURL);
 
       setStatus("Initializing webcam...");
       const size = 400;
