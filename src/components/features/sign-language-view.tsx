@@ -39,26 +39,28 @@ export default function SignLanguageView() {
   const modelRef = useRef<any | null>(null);
   const animationFrameId = useRef<number | null>(null);
   const canvasContainerRef = useRef<HTMLDivElement>(null);
-
+  
   const predict = useCallback(async () => {
-    if (modelRef.current && webcamRef.current?.canvas) {
-      try {
+    // Ensure refs are still valid
+    if (!modelRef.current || !webcamRef.current?.canvas) {
+        return;
+    }
+    try {
         const prediction = await modelRef.current.predict(
-          webcamRef.current.canvas
+            webcamRef.current.canvas
         );
         setPredictions(prediction);
-      } catch (error) {
+    } catch (error) {
         console.error("Prediction error:", error);
-      }
     }
   }, []);
 
   const loop = useCallback(async () => {
     if (webcamRef.current) {
-      webcamRef.current.update();
-      await predict();
-      animationFrameId.current = requestAnimationFrame(loop);
+        webcamRef.current.update();
+        await predict();
     }
+    animationFrameId.current = requestAnimationFrame(loop);
   }, [predict]);
 
   const stopWebcam = useCallback(() => {
@@ -67,18 +69,23 @@ export default function SignLanguageView() {
       animationFrameId.current = null;
     }
 
-    if (webcamRef.current) {
-      if (typeof webcamRef.current.stop === "function") {
+    // Stop the webcam stream
+    if (webcamRef.current && typeof webcamRef.current.stop === 'function') {
+        const stream = webcamRef.current.canvas?.srcObject;
+        if (stream) {
+            const tracks = stream.getTracks();
+            tracks.forEach((track: MediaStreamTrack) => track.stop());
+        }
         webcamRef.current.stop();
-      }
-      webcamRef.current = null;
+        webcamRef.current = null;
     }
 
+    // Clear the container
     if (canvasContainerRef.current) {
       canvasContainerRef.current.innerHTML = "";
     }
     
-    // This is crucial for cleanup
+    // Dispose of the model
     if (modelRef.current) {
         if (typeof modelRef.current.dispose === 'function') {
             modelRef.current.dispose();
@@ -91,18 +98,17 @@ export default function SignLanguageView() {
       window.tf.disposeVariables();
     }
 
-
     setStatus("Webcam stopped.");
     setPredictions([]);
+    setLoading(false);
   }, []);
 
   const startWebcam = useCallback(async () => {
-    if (
-      typeof window.tmImage === "undefined" ||
-      typeof window.tf === "undefined"
-    ) {
+    if (isWebcamActive) return; // Prevent multiple starts
+
+    if (typeof window.tmImage === "undefined" || typeof window.tf === "undefined") {
       setStatus("Waiting for libraries to load...");
-      setTimeout(() => startWebcam(), 500);
+      setTimeout(() => startWebcam(), 500); // Retry after a short delay
       return;
     }
 
@@ -128,10 +134,11 @@ export default function SignLanguageView() {
         canvasContainerRef.current.innerHTML = ""; // Clear previous canvas if any
         canvasContainerRef.current.appendChild(newWebcam.canvas);
       }
-
+      
       setLoading(false);
       setStatus("Ready");
-
+      setIsWebcamActive(true);
+      
       animationFrameId.current = requestAnimationFrame(loop);
     } catch (error) {
       console.error("Error initializing Teachable Machine:", error);
@@ -144,22 +151,21 @@ export default function SignLanguageView() {
       setIsWebcamActive(false);
       setLoading(false);
     }
-  }, [loop, toast]);
+  }, [isWebcamActive, loop, toast]);
+
+  // This effect ensures cleanup happens when the component unmounts.
+  useEffect(() => {
+    return () => {
+      stopWebcam();
+    };
+  }, [stopWebcam]);
 
   const handleToggleWebcam = useCallback(() => {
-    setIsWebcamActive((prev) => !prev);
-  }, []);
-  
-  useEffect(() => {
     if (isWebcamActive) {
-      startWebcam();
+      stopWebcam();
+      setIsWebcamActive(false);
     } else {
-      stopWebcam();
-    }
-    
-    return () => {
-      // This is a critical cleanup step.
-      stopWebcam();
+      startWebcam();
     }
   }, [isWebcamActive, startWebcam, stopWebcam]);
 

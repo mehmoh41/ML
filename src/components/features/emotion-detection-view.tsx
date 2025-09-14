@@ -45,28 +45,31 @@ export default function EmotionDetectionView() {
   const metadataURL = URL + "metadata.json";
 
   const predict = useCallback(async () => {
-    if (modelRef.current && webcamRef.current?.canvas) {
-      try {
-        const { pose, posenetOutput } = await modelRef.current.estimatePose(
-          webcamRef.current.canvas
-        );
-        const prediction = await modelRef.current.predict(posenetOutput);
-        setPredictions(prediction);
+    // Ensure refs are still valid
+    if (!modelRef.current || !webcamRef.current?.canvas) {
+      return;
+    }
+    try {
+      const { pose, posenetOutput } = await modelRef.current.estimatePose(
+        webcamRef.current.canvas
+      );
+      const prediction = await modelRef.current.predict(posenetOutput);
+      setPredictions(prediction);
 
-        const canvas = canvasRef.current;
-        if (canvas && pose) {
-          const ctx = canvas.getContext("2d");
-          if (ctx) {
-            ctx.drawImage(webcamRef.current.canvas, 0, 0);
-            if (window.tmPose && pose) {
-              window.tmPose.drawKeypoints(pose.keypoints, 0.6, ctx);
-              window.tmPose.drawSkeleton(pose.keypoints, 0.6, ctx);
-            }
+      const canvas = canvasRef.current;
+      if (canvas && pose) {
+        const ctx = canvas.getContext("2d");
+        if (ctx) {
+          ctx.drawImage(webcamRef.current.canvas, 0, 0);
+          // draw the keypoints and skeleton
+          if (pose && window.tmPose) {
+            window.tmPose.drawKeypoints(pose.keypoints, 0.6, ctx);
+            window.tmPose.drawSkeleton(pose.keypoints, 0.6, ctx);
           }
         }
-      } catch (error) {
-        console.error("Prediction error:", error);
       }
+    } catch (error) {
+      console.error("Prediction error:", error);
     }
   }, []);
 
@@ -74,8 +77,8 @@ export default function EmotionDetectionView() {
     if (webcamRef.current) {
       webcamRef.current.update();
       await predict();
-      animationFrameId.current = requestAnimationFrame(loop);
     }
+    animationFrameId.current = requestAnimationFrame(loop);
   }, [predict]);
 
   const stopWebcam = useCallback(() => {
@@ -83,18 +86,26 @@ export default function EmotionDetectionView() {
       cancelAnimationFrame(animationFrameId.current);
       animationFrameId.current = null;
     }
+    
+    // Stop the webcam stream
     if (webcamRef.current && typeof webcamRef.current.stop === "function") {
+      const stream = webcamRef.current.canvas?.srcObject;
+      if (stream) {
+        const tracks = stream.getTracks();
+        tracks.forEach((track: MediaStreamTrack) => track.stop());
+      }
       webcamRef.current.stop();
       webcamRef.current = null;
     }
 
+    // Clear the canvas
     const canvas = canvasRef.current;
     if (canvas) {
       const ctx = canvas.getContext("2d");
       ctx?.clearRect(0, 0, canvas.width, canvas.height);
     }
     
-    // This is crucial for cleanup
+    // Dispose of the model
     if (modelRef.current) {
         if (typeof modelRef.current.dispose === 'function') {
             modelRef.current.dispose();
@@ -107,16 +118,15 @@ export default function EmotionDetectionView() {
       window.tf.disposeVariables();
     }
 
-
     setStatus("Webcam stopped.");
     setPredictions([]);
+    setLoading(false);
   }, []);
 
   const startWebcam = useCallback(async () => {
-    if (
-      typeof window.tmPose === "undefined" ||
-      typeof window.tf === "undefined"
-    ) {
+    if (isWebcamActive) return; // Prevent multiple starts
+
+    if (typeof window.tmPose === "undefined" || typeof window.tf === "undefined") {
       setStatus("Waiting for libraries to load...");
       setTimeout(() => startWebcam(), 500);
       return;
@@ -140,6 +150,7 @@ export default function EmotionDetectionView() {
 
       setLoading(false);
       setStatus("Ready");
+      setIsWebcamActive(true);
 
       animationFrameId.current = requestAnimationFrame(loop);
     } catch (error) {
@@ -153,21 +164,22 @@ export default function EmotionDetectionView() {
       setIsWebcamActive(false);
       setLoading(false);
     }
-  }, [loop, metadataURL, modelURL, toast]);
+  }, [isWebcamActive, loop, metadataURL, modelURL, toast]);
 
-  const handleToggleWebcam = useCallback(() => {
-    setIsWebcamActive((prev) => !prev);
-  }, []);
-  
+
   useEffect(() => {
-    if (isWebcamActive) {
-      startWebcam();
-    } else {
-      stopWebcam();
-    }
-    
+    // This effect handles the cleanup when the component unmounts.
     return () => {
       stopWebcam();
+    };
+  }, [stopWebcam]);
+
+  const handleToggleWebcam = useCallback(() => {
+    if (isWebcamActive) {
+      stopWebcam();
+      setIsWebcamActive(false);
+    } else {
+      startWebcam();
     }
   }, [isWebcamActive, startWebcam, stopWebcam]);
 

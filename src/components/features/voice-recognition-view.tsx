@@ -39,17 +39,18 @@ export default function VoiceRecognitionView() {
       if (recognizerRef.current.isListening()) {
         recognizerRef.current.stopListening();
       }
-      if (typeof recognizerRef.current.delete === 'function') {
-        try {
-          // This will throw an error if the underlying model is already deleted, which can happen.
-          // We can safely ignore it.
+      // The delete function can throw an error if the model is already gone.
+      // We can safely ignore it.
+      try {
+        if (typeof recognizerRef.current.delete === 'function') {
           recognizerRef.current.delete();
-        } catch (error) {
-           console.warn("Could not delete recognizer, it might have been cleaned up already.", error);
         }
+      } catch (error) {
+         console.warn("Could not delete recognizer, it might have been cleaned up already.", error);
       }
       recognizerRef.current = null;
     }
+    setLoading(false);
     setIsListening(false);
     setStatus("Microphone off");
     setPredictions([]);
@@ -57,6 +58,8 @@ export default function VoiceRecognitionView() {
 
 
   const startListening = useCallback(async () => {
+    if (isListening) return; // Prevent multiple starts
+
     if (typeof window.speechCommands === 'undefined' || typeof window.tf === 'undefined') {
       setStatus("Waiting for libraries to load...");
       setTimeout(() => startListening(), 500);
@@ -65,9 +68,9 @@ export default function VoiceRecognitionView() {
 
     try {
       setLoading(true);
-      setIsListening(true);
       setStatus("Initializing...");
 
+      // Ensure any old recognizer is stopped before creating a new one.
       if (recognizerRef.current) {
         stopListening();
       }
@@ -91,6 +94,7 @@ export default function VoiceRecognitionView() {
 
       setLoading(false);
       setStatus("Listening...");
+      setIsListening(true);
 
       recognizer.listen(
         (result: { scores: Float32Array }) => {
@@ -108,22 +112,34 @@ export default function VoiceRecognitionView() {
           includeSpectrogram: true,
           probabilityThreshold: 0.75,
           invokeCallbackOnNoiseAndUnknown: true,
-          overlapFactor: 0.75, // Changed from 0.75 to 0.5 for performance
+          overlapFactor: 0.50, //
         }
       );
 
     } catch (error) {
-      console.error("Error initializing Teachable Machine:", error);
+      console.error("Error initializing audio recognition:", error);
       setStatus("Error loading model. Please check permissions and refresh.");
       toast({
         variant: "destructive",
         title: "Initialization Failed",
         description: "Could not load model or access microphone.",
       });
-      stopListening();
-      setLoading(false);
+      // Ensure we are fully stopped on error
+      if (recognizerRef.current) {
+        stopListening();
+      } else {
+        setIsListening(false);
+        setLoading(false);
+      }
     }
-  }, [stopListening, toast]);
+  }, [isListening, stopListening, toast]);
+  
+  // This is the cleanup function that runs when the component unmounts.
+  useEffect(() => {
+    return () => {
+      stopListening();
+    };
+  }, [stopListening]);
 
   const handleToggleListening = useCallback(() => {
     if (isListening) {
@@ -132,28 +148,6 @@ export default function VoiceRecognitionView() {
       startListening();
     }
   }, [isListening, startListening, stopListening]);
-  
-  useEffect(() => {
-    // This effect runs only once on mount to ensure tf is ready.
-    // It does not start the listening process.
-    if (typeof window.tf === 'undefined') {
-        setStatus("Waiting for TensorFlow to load...");
-        const timer = setInterval(() => {
-            if (typeof window.tf !== 'undefined') {
-                setStatus("Ready to start");
-                clearInterval(timer);
-            }
-        }, 100);
-        return () => clearInterval(timer);
-    }
-  }, []);
-
-  useEffect(() => {
-    // This is the cleanup function that runs when the component unmounts.
-    return () => {
-      stopListening();
-    };
-  }, [stopListening]);
 
   const highestPrediction = predictions.reduce(
     (prev, current) => (prev.probability > current.probability ? prev : current),
