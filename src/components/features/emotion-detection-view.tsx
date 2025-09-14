@@ -4,14 +4,17 @@ import {
   Card,
   CardContent,
   CardDescription,
+  CardFooter,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { Webcam, Video, VideoOff } from "lucide-react";
+import { Webcam, Video, VideoOff, Sparkles, Loader2 } from "lucide-react";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Progress } from "../ui/progress";
 import { Button } from "../ui/button";
+import { enhanceEmotionDetection, EnhanceEmotionDetectionOutput } from "@/ai/flows/enhance-emotion-detection";
+import { Textarea } from "../ui/textarea";
 
 // Extend the window object to include tmPose
 declare global {
@@ -36,6 +39,10 @@ export default function EmotionDetectionView() {
   const [status, setStatus] = useState("Ready to start");
   const [isWebcamActive, setIsWebcamActive] = useState(false);
 
+  const [happyDescription, setHappyDescription] = useState("A person smiling, with corners of the mouth turned up, and raised cheeks.");
+  const [isEnhancing, setIsEnhancing] = useState(false);
+  const [enhancementResult, setEnhancementResult] = useState<EnhanceEmotionDetectionOutput | null>(null);
+
   const webcamRef = useRef<any | null>(null);
   const modelRef = useRef<any | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -55,9 +62,7 @@ export default function EmotionDetectionView() {
       if (canvas && pose) {
         const ctx = canvas.getContext("2d");
         if (ctx) {
-          // Draw the webcam image onto the canvas
           ctx.drawImage(webcam.canvas, 0, 0);
-          // Draw the pose skeleton and keypoints
           if (window.tmPose && pose) {
             window.tmPose.drawKeypoints(pose.keypoints, 0.6, ctx);
             window.tmPose.drawSkeleton(pose.keypoints, 0.6, ctx);
@@ -91,16 +96,16 @@ export default function EmotionDetectionView() {
     }
     webcamRef.current = null;
     animationFrameId.current = null;
+    modelRef.current = null; // Important: Clear the model ref
     setIsWebcamActive(false);
     setStatus("Webcam stopped.");
     setPredictions([]);
   }, []);
   
   const startWebcam = useCallback(async () => {
-    // Check if tmPose is available on the window object
     if (typeof window.tmPose === 'undefined' || typeof window.tf === 'undefined') {
       setStatus("Waiting for libraries to load...");
-      setTimeout(startWebcam, 500); // Retry after 500ms
+      setTimeout(startWebcam, 500); 
       return;
     }
 
@@ -111,8 +116,10 @@ export default function EmotionDetectionView() {
       await window.tf.ready();
       
       setStatus("Loading model...");
-      const loadedModel = await window.tmPose.load(modelURL, metadataURL);
-      modelRef.current = loadedModel;
+      if (!modelRef.current) {
+        const loadedModel = await window.tmPose.load(modelURL, metadataURL);
+        modelRef.current = loadedModel;
+      }
 
       setStatus("Initializing webcam...");
       const size = 400;
@@ -149,13 +156,51 @@ export default function EmotionDetectionView() {
   };
   
   useEffect(() => {
-    // Cleanup on unmount
     return () => {
       stopWebcam();
     };
   }, [stopWebcam]);
 
-  const highestPrediction = predictions.reduce(
+  const handleEnhance = async () => {
+    const happyPrediction = predictions.find(p => p.className === "Happy");
+    const currentAccuracy = happyPrediction?.probability || 0;
+
+    setIsEnhancing(true);
+    setEnhancementResult(null);
+    try {
+      const result = await enhanceEmotionDetection({
+        emotion: "Happy",
+        description: happyDescription,
+        currentAccuracy,
+      });
+      setEnhancementResult(result);
+      toast({
+        title: "Enhancement Simulated!",
+        description: "AI has calculated a potential new accuracy.",
+      });
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "Enhancement Failed",
+        description: "Could not get a result from the AI model.",
+      });
+    } finally {
+      setIsEnhancing(false);
+    }
+  };
+
+  const getEnhancedPrediction = (prediction: Prediction) => {
+    if (enhancementResult && prediction.className === 'Happy') {
+        return {
+            ...prediction,
+            probability: enhancementResult.enhancedAccuracy,
+        };
+    }
+    return prediction;
+  };
+  
+  const displayPredictions = predictions.map(getEnhancedPrediction);
+  const highestPrediction = displayPredictions.reduce(
     (prev, current) => (prev.probability > current.probability ? prev : current),
     { className: "...", probability: 0 }
   );
@@ -203,6 +248,38 @@ export default function EmotionDetectionView() {
             </div>
           </CardContent>
         </Card>
+        <Card className="shadow-lg">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2"><Sparkles className="text-accent"/>AI-Powered Enhancement</CardTitle>
+            <CardDescription>
+              Help the AI improve its accuracy for the "Happy" emotion by providing a better description.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-4">
+              <div>
+                <label htmlFor="happy-description" className="text-sm font-medium">Describe "Happy"</label>
+                <Textarea 
+                  id="happy-description"
+                  value={happyDescription}
+                  onChange={(e) => setHappyDescription(e.target.value)}
+                  placeholder="e.g., A person with a wide smile, showing teeth..."
+                  className="mt-1"
+                />
+              </div>
+              <Button onClick={handleEnhance} disabled={isEnhancing}>
+                {isEnhancing ? <Loader2 className="animate-spin" /> : <Sparkles />}
+                <span>Simulate Enhancement</span>
+              </Button>
+            </div>
+          </CardContent>
+          {enhancementResult && (
+            <CardFooter className="flex flex-col items-start gap-2 border-t pt-4">
+              <h3 className="font-semibold">Enhancement Result:</h3>
+              <p className="text-sm text-muted-foreground">{enhancementResult.reasoning}</p>
+            </CardFooter>
+          )}
+        </Card>
       </div>
 
       <div className="lg:col-span-1">
@@ -222,8 +299,8 @@ export default function EmotionDetectionView() {
                  <div className="text-center text-muted-foreground py-8">
                     <p>Waiting for model to load...</p>
                  </div>
-             ) : predictions.length > 0 ? (
-              predictions
+             ) : displayPredictions.length > 0 ? (
+              displayPredictions
                 .sort((a, b) => b.probability - a.probability)
                 .map((p) => (
                 <div key={p.className}>

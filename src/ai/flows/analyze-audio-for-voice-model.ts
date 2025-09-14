@@ -15,7 +15,7 @@ const AnalyzeAudioInputSchema = z.object({
   audioDataUri: z
     .string()
     .describe(
-      'The audio data URI to be analyzed, which must include a MIME type and use Base64 encoding. Expected format: \'data:<mimetype>;base64,<encoded_data>\'.' // Corrected description
+      "The audio data URI to be analyzed, which must include a MIME type and use Base64 encoding. Expected format: 'data:<mimetype>;base64,<encoded_data>'." // Corrected description
     ),
 });
 export type AnalyzeAudioInput = z.infer<typeof AnalyzeAudioInputSchema>;

@@ -6,6 +6,7 @@ import {
   Card,
   CardContent,
   CardDescription,
+  CardFooter,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
@@ -83,17 +84,17 @@ export default function SignLanguageView() {
   }, []);
   
   const loop = useCallback(async () => {
-    const webcam = webcamRef.current;
-    if (webcam) {
-      webcam.update();
-      await predict();
-      animationFrameId.current = requestAnimationFrame(loop);
+    if (webcamRef.current) {
+        webcamRef.current.update();
+        await predict();
+        animationFrameId.current = requestAnimationFrame(loop);
     }
   }, [predict]);
 
   const stopWebcam = useCallback(() => {
     if (animationFrameId.current) {
       cancelAnimationFrame(animationFrameId.current);
+      animationFrameId.current = null;
     }
     const webcam = webcamRef.current;
     if (webcam && webcam.stop) {
@@ -106,7 +107,7 @@ export default function SignLanguageView() {
     }
 
     webcamRef.current = null;
-    animationFrameId.current = null;
+    modelRef.current = null; // Important: Clear the model ref
     setIsWebcamActive(false);
     setStatus("Webcam stopped.");
     setPredictions([]);
@@ -128,10 +129,12 @@ export default function SignLanguageView() {
       const metadataURL = URL + "metadata.json";
 
       setStatus("Loading model...");
-      const loadedModel = await window.tmImage.load(modelURL, metadataURL);
-      modelRef.current = loadedModel;
+      if (!modelRef.current) {
+        const loadedModel = await window.tmImage.load(modelURL, metadataURL);
+        modelRef.current = loadedModel;
+      }
       
-      const classLabels = loadedModel.getClassLabels();
+      const classLabels = modelRef.current.getClassLabels();
       setExistingGestures(classLabels);
 
       setStatus("Initializing webcam...");
@@ -361,5 +364,3 @@ export default function SignLanguageView() {
     </div>
   );
 }
-
-    
