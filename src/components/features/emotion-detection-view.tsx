@@ -8,14 +8,16 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { Webcam } from "lucide-react";
+import { Webcam, Video, VideoOff } from "lucide-react";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Progress } from "../ui/progress";
+import { Button } from "../ui/button";
 
 // Extend the window object to include tmPose
 declare global {
   interface Window {
     tmPose: any;
+    tf: any;
   }
 }
 
@@ -30,8 +32,9 @@ type Prediction = {
 export default function EmotionDetectionView() {
   const { toast } = useToast();
   const [predictions, setPredictions] = useState<Prediction[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [status, setStatus] = useState("Loading model...");
+  const [loading, setLoading] = useState(false);
+  const [status, setStatus] = useState("Ready to start");
+  const [isWebcamActive, setIsWebcamActive] = useState(false);
 
   const webcamRef = useRef<any | null>(null);
   const modelRef = useRef<any | null>(null);
@@ -73,15 +76,40 @@ export default function EmotionDetectionView() {
     }
   }, [predict]);
 
-  const init = useCallback(async () => {
+  const stopWebcam = useCallback(() => {
+    if (animationFrameId.current) {
+      cancelAnimationFrame(animationFrameId.current);
+    }
+    const webcam = webcamRef.current;
+    if (webcam && webcam.stop) {
+      webcam.stop();
+    }
+    const canvas = canvasRef.current;
+    if (canvas) {
+        const ctx = canvas.getContext('2d');
+        ctx?.clearRect(0, 0, canvas.width, canvas.height);
+    }
+    webcamRef.current = null;
+    animationFrameId.current = null;
+    setIsWebcamActive(false);
+    setStatus("Webcam stopped.");
+    setPredictions([]);
+  }, []);
+  
+  const startWebcam = useCallback(async () => {
     // Check if tmPose is available on the window object
-    if (typeof window.tmPose === 'undefined') {
+    if (typeof window.tmPose === 'undefined' || typeof window.tf === 'undefined') {
       setStatus("Waiting for libraries to load...");
-      setTimeout(init, 500); // Retry after 500ms
+      setTimeout(startWebcam, 500); // Retry after 500ms
       return;
     }
 
     try {
+      setLoading(true);
+      setIsWebcamActive(true);
+      setStatus("Initializing TensorFlow...");
+      await window.tf.ready();
+      
       setStatus("Loading model...");
       const loadedModel = await window.tmPose.load(modelURL, metadataURL);
       modelRef.current = loadedModel;
@@ -107,23 +135,25 @@ export default function EmotionDetectionView() {
         title: "Initialization Failed",
         description: "Could not load model or access webcam.",
       });
+      setIsWebcamActive(false);
+      setLoading(false);
     }
   }, [loop, metadataURL, modelURL, toast]);
+
+  const handleToggleWebcam = () => {
+    if (isWebcamActive) {
+      stopWebcam();
+    } else {
+      startWebcam();
+    }
+  };
   
   useEffect(() => {
-    init();
-
+    // Cleanup on unmount
     return () => {
-      // Cleanup function to stop webcam and animation loop
-      if (animationFrameId.current) {
-        cancelAnimationFrame(animationFrameId.current);
-      }
-      const webcam = webcamRef.current;
-      if (webcam && webcam.stop) {
-        webcam.stop();
-      }
+      stopWebcam();
     };
-  }, [init]);
+  }, [stopWebcam]);
 
   const highestPrediction = predictions.reduce(
     (prev, current) => (prev.probability > current.probability ? prev : current),
@@ -134,32 +164,42 @@ export default function EmotionDetectionView() {
     <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
       <div className="flex flex-col gap-8 lg:col-span-2">
         <Card className="overflow-hidden shadow-lg">
-          <CardHeader className="bg-muted/30">
-            <CardTitle className="flex items-center gap-2">
-              <Webcam className="text-primary" />
-              Live Pose Detection
-            </CardTitle>
-            <CardDescription>
-              The model is analyzing your pose in real-time using your Teachable Machine model.
-            </CardDescription>
+          <CardHeader className="bg-muted/30 flex-row items-center justify-between">
+            <div className="space-y-1.5">
+              <CardTitle className="flex items-center gap-2">
+                <Webcam className="text-primary" />
+                Live Pose Detection
+              </CardTitle>
+              <CardDescription>
+                The model is analyzing your pose in real-time.
+              </CardDescription>
+            </div>
+            <Button variant="outline" size="sm" onClick={handleToggleWebcam} disabled={loading}>
+              {isWebcamActive ? <VideoOff /> : <Video />}
+              <span>{isWebcamActive ? "Stop Webcam" : "Start Webcam"}</span>
+            </Button>
           </CardHeader>
           <CardContent className="p-0">
             <div className="relative aspect-square max-w-full overflow-hidden mx-auto bg-black flex items-center justify-center">
-              {loading && (
-                 <div className="absolute z-10 text-center text-white">
-                    <p>{status}</p>
+              {(loading || !isWebcamActive) && (
+                 <div className="absolute z-10 text-center text-white/80 p-4">
+                    <Webcam className="mx-auto h-12 w-12 mb-4" />
+                    <p className="font-medium">{status}</p>
+                    {!isWebcamActive && !loading && <p className="text-sm">Click "Start Webcam" to begin.</p>}
                  </div>
               )}
               <canvas ref={canvasRef} width={400} height={400} className="h-full w-full object-contain" />
               
-              <div className="absolute bottom-4 right-4 flex items-center gap-4 rounded-lg bg-background/80 p-4 shadow-md backdrop-blur-sm">
-                <div>
-                  <p className="text-sm text-muted-foreground">Detected Pose</p>
-                  <p className="text-2xl font-bold font-headline text-foreground">
-                    {highestPrediction.className}
-                  </p>
+              {isWebcamActive && predictions.length > 0 && (
+                <div className="absolute bottom-4 right-4 flex items-center gap-4 rounded-lg bg-background/80 p-4 shadow-md backdrop-blur-sm">
+                  <div>
+                    <p className="text-sm text-muted-foreground">Detected Pose</p>
+                    <p className="text-2xl font-bold font-headline text-foreground">
+                      {highestPrediction.className}
+                    </p>
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -174,8 +214,12 @@ export default function EmotionDetectionView() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-             {loading ? (
-                 <div className="text-center text-muted-foreground">
+             {!isWebcamActive ? (
+                 <div className="text-center text-muted-foreground py-8">
+                    <p>Start the webcam to see predictions.</p>
+                 </div>
+             ) : loading ? (
+                 <div className="text-center text-muted-foreground py-8">
                     <p>Waiting for model to load...</p>
                  </div>
              ) : predictions.length > 0 ? (
@@ -193,7 +237,7 @@ export default function EmotionDetectionView() {
                 </div>
               ))
             ) : (
-                <div className="text-center text-muted-foreground">
+                <div className="text-center text-muted-foreground py-8">
                     <p>No poses detected yet.</p>
                 </div>
             )}
