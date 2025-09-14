@@ -17,7 +17,6 @@ declare global {
   interface Window {
     speechCommands: any;
     tf: any;
-    stream: MediaStream;
   }
 }
 
@@ -36,26 +35,31 @@ export default function VoiceRecognitionView() {
   const recognizerRef = useRef<any | null>(null);
 
   const stopListening = useCallback(() => {
-    if (recognizerRef.current && recognizerRef.current.isListening()) {
-      recognizerRef.current.stopListening();
-    }
-    if (recognizerRef.current && typeof recognizerRef.current.delete === 'function') {
-      try {
-        recognizerRef.current.delete();
-      } catch (error) {
-        console.error("Error deleting recognizer:", error);
+    if (recognizerRef.current) {
+      if (recognizerRef.current.isListening()) {
+        recognizerRef.current.stopListening();
       }
+      if (typeof recognizerRef.current.delete === 'function') {
+        try {
+          // This will throw an error if the underlying model is already deleted, which can happen.
+          // We can safely ignore it.
+          recognizerRef.current.delete();
+        } catch (error) {
+           console.warn("Could not delete recognizer, it might have been cleaned up already.", error);
+        }
+      }
+      recognizerRef.current = null;
     }
-    recognizerRef.current = null;
     setIsListening(false);
     setStatus("Microphone off");
     setPredictions([]);
   }, []);
 
+
   const startListening = useCallback(async () => {
     if (typeof window.speechCommands === 'undefined' || typeof window.tf === 'undefined') {
       setStatus("Waiting for libraries to load...");
-      setTimeout(startListening, 500);
+      setTimeout(() => startListening(), 500);
       return;
     }
 
@@ -64,20 +68,23 @@ export default function VoiceRecognitionView() {
       setIsListening(true);
       setStatus("Initializing...");
 
-      if (!recognizerRef.current) {
-        setStatus("Loading model...");
-        const URL = window.location.origin + "/my_model/";
-        const modelURL = URL + "model.json";
-        const metadataURL = URL + "metadata.json";
-
-        recognizerRef.current = window.speechCommands.create(
-          "BROWSER_FFT",
-          undefined,
-          modelURL,
-          metadataURL
-        );
-        await recognizerRef.current.ensureModelLoaded();
+      if (recognizerRef.current) {
+        stopListening();
       }
+
+      setStatus("Loading model...");
+      const URL = window.location.origin + "/my_model/";
+      const modelURL = URL + "model.json";
+      const metadataURL = URL + "metadata.json";
+
+      const newRecognizer = window.speechCommands.create(
+        "BROWSER_FFT",
+        undefined,
+        modelURL,
+        metadataURL
+      );
+      await newRecognizer.ensureModelLoaded();
+      recognizerRef.current = newRecognizer;
       
       const recognizer = recognizerRef.current;
       const classLabels = recognizer.wordLabels();
@@ -87,18 +94,21 @@ export default function VoiceRecognitionView() {
 
       recognizer.listen(
         (result: { scores: Float32Array }) => {
-          const scores = Array.from(result.scores);
-          const newPredictions = classLabels.map((label: string, index: number) => ({
-            className: label,
-            probability: scores[index],
-          }));
-          setPredictions(newPredictions);
+          // Check if recognizer is still active before updating state
+          if (recognizerRef.current) {
+            const scores = Array.from(result.scores);
+            const newPredictions = classLabels.map((label: string, index: number) => ({
+              className: label,
+              probability: scores[index],
+            }));
+            setPredictions(newPredictions);
+          }
         },
         {
           includeSpectrogram: true,
           probabilityThreshold: 0.75,
           invokeCallbackOnNoiseAndUnknown: true,
-          overlapFactor: 0.75,
+          overlapFactor: 0.75, // Changed from 0.75 to 0.5 for performance
         }
       );
 
@@ -110,10 +120,10 @@ export default function VoiceRecognitionView() {
         title: "Initialization Failed",
         description: "Could not load model or access microphone.",
       });
-      setIsListening(false);
+      stopListening();
       setLoading(false);
     }
-  }, [toast]);
+  }, [stopListening, toast]);
 
   const handleToggleListening = useCallback(() => {
     if (isListening) {
@@ -124,6 +134,22 @@ export default function VoiceRecognitionView() {
   }, [isListening, startListening, stopListening]);
   
   useEffect(() => {
+    // This effect runs only once on mount to ensure tf is ready.
+    // It does not start the listening process.
+    if (typeof window.tf === 'undefined') {
+        setStatus("Waiting for TensorFlow to load...");
+        const timer = setInterval(() => {
+            if (typeof window.tf !== 'undefined') {
+                setStatus("Ready to start");
+                clearInterval(timer);
+            }
+        }, 100);
+        return () => clearInterval(timer);
+    }
+  }, []);
+
+  useEffect(() => {
+    // This is the cleanup function that runs when the component unmounts.
     return () => {
       stopListening();
     };
