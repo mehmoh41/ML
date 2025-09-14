@@ -1,17 +1,15 @@
 "use client";
 
-import { analyzeAudio, AnalyzeAudioOutput } from "@/ai/flows/analyze-audio-for-voice-model";
 import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
   CardDescription,
-  CardFooter,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { Mic, MicOff, Loader2, Music, User, Sparkles, AlertTriangle, AudioLines, ShieldCheck } from "lucide-react";
+import { Mic, MicOff, Loader2, Music, User } from "lucide-react";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Progress } from "../ui/progress";
 
@@ -20,7 +18,6 @@ declare global {
     speechCommands: any;
     tf: any;
     stream: MediaStream;
-    MediaRecorder: typeof MediaRecorder;
   }
 }
 
@@ -35,12 +32,6 @@ export default function VoiceRecognitionView() {
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState("Ready to start");
   const [isListening, setIsListening] = useState(false);
-  
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [analysisResult, setAnalysisResult] = useState<AnalyzeAudioOutput | null>(null);
-  const [isRecording, setIsRecording] = useState(false);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const audioChunksRef = useRef<Blob[]>([]);
 
   const recognizerRef = useRef<any | null>(null);
 
@@ -48,7 +39,6 @@ export default function VoiceRecognitionView() {
     if (recognizerRef.current && recognizerRef.current.isListening()) {
       recognizerRef.current.stopListening();
     }
-    // Do not clear the recognizerRef here to reuse it
     setIsListening(false);
     setStatus("Microphone off");
     setPredictions([]);
@@ -108,10 +98,15 @@ export default function VoiceRecognitionView() {
     } catch (error) {
       console.error("Error initializing Teachable Machine:", error);
       setStatus("Error loading model. Please check permissions and refresh.");
+      toast({
+        variant: "destructive",
+        title: "Initialization Failed",
+        description: "Could not load model or access microphone.",
+      });
       setIsListening(false);
       setLoading(false);
     }
-  }, []);
+  }, [toast]);
 
   const handleToggleListening = () => {
     if (isListening) {
@@ -120,66 +115,11 @@ export default function VoiceRecognitionView() {
       startListening();
     }
   };
-
-  const startRecording = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      window.stream = stream;
-      mediaRecorderRef.current = new MediaRecorder(stream);
-      audioChunksRef.current = [];
-
-      mediaRecorderRef.current.ondataavailable = (event) => {
-        audioChunksRef.current.push(event.data);
-      };
-
-      mediaRecorderRef.current.onstop = async () => {
-        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-        const reader = new FileReader();
-        reader.readAsDataURL(audioBlob);
-        reader.onloadend = async () => {
-          const base64Audio = reader.result as string;
-          setIsAnalyzing(true);
-          setAnalysisResult(null);
-          try {
-            const result = await analyzeAudio({ audioDataUri: base64Audio });
-            setAnalysisResult(result);
-            toast({ title: "Analysis Complete", description: "AI has analyzed your audio sample." });
-          } catch (error) {
-            toast({ variant: "destructive", title: "Analysis Failed", description: "Could not analyze the audio." });
-          } finally {
-            setIsAnalyzing(false);
-          }
-        };
-      };
-
-      mediaRecorderRef.current.start();
-      setIsRecording(true);
-
-      setTimeout(() => {
-        stopRecording();
-      }, 3000); // Record for 3 seconds
-
-    } catch (error) {
-      toast({ variant: "destructive", title: "Recording Failed", description: "Could not access microphone." });
-    }
-  };
-
-  const stopRecording = () => {
-    if (mediaRecorderRef.current && isRecording) {
-      mediaRecorderRef.current.stop();
-      window.stream.getTracks().forEach(track => track.stop());
-      setIsRecording(false);
-    }
-  };
   
   useEffect(() => {
     // Cleanup on unmount
     return () => {
       stopListening();
-      if(recognizerRef.current) {
-        // recognizerRef.current.delete(); // This method might not exist, be careful
-        recognizerRef.current = null;
-      }
     };
   }, [stopListening]);
 
@@ -192,7 +132,7 @@ export default function VoiceRecognitionView() {
 
   return (
     <div className="grid grid-cols-1 gap-8 md:grid-cols-3">
-      <div className="flex flex-col gap-8 md:col-span-2">
+      <div className="md:col-span-2">
         <Card className="shadow-lg">
           <CardHeader className="bg-muted/30 flex-row items-center justify-between">
             <div className="space-y-1.5">
@@ -227,44 +167,6 @@ export default function VoiceRecognitionView() {
               </p>
             </div>
           </CardContent>
-        </Card>
-        <Card className="shadow-lg">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2"><Sparkles className="text-accent" />AI Audio Analysis</CardTitle>
-            <CardDescription>Record a 3-second audio clip for the AI to analyze its quality and provide feedback before you start recognition.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Button onClick={startRecording} disabled={isRecording || isAnalyzing || isListening}>
-              {isRecording ? <Loader2 className="animate-spin" /> : <AudioLines />}
-              <span>{isRecording ? 'Recording...' : 'Start 3s Audio Analysis'}</span>
-            </Button>
-          </CardContent>
-          {(isAnalyzing || analysisResult) && (
-            <CardFooter className="flex flex-col items-start gap-4 border-t pt-4">
-              <h3 className="font-semibold">Analysis Results:</h3>
-              {isAnalyzing && <p className="text-sm text-muted-foreground flex items-center gap-2"><Loader2 className="animate-spin"/>Analyzing audio...</p>}
-              {analysisResult && (
-                <div className="grid gap-4 text-sm w-full">
-                  <div className="flex items-center justify-between">
-                    <span className="font-medium text-muted-foreground">Overall Quality:</span>
-                    <span className={`font-bold ${analysisResult.overallQuality === 'good' ? 'text-green-600' : 'text-amber-600'}`}>{analysisResult.overallQuality}</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground">Speech Clarity:</span>
-                    <span>{analysisResult.speechClarity}</span>
-                  </div>
-                   <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground">Noise Level:</span>
-                    <span>{analysisResult.noiseLevel}</span>
-                  </div>
-                   <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground">Music Present:</span>
-                    <span>{analysisResult.musicPresence ? 'Yes' : 'No'}</span>
-                  </div>
-                </div>
-              )}
-            </CardFooter>
-          )}
         </Card>
       </div>
 

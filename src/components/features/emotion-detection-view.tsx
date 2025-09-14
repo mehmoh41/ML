@@ -84,19 +84,18 @@ export default function EmotionDetectionView() {
   const stopWebcam = useCallback(() => {
     if (animationFrameId.current) {
       cancelAnimationFrame(animationFrameId.current);
+      animationFrameId.current = null;
     }
     const webcam = webcamRef.current;
     if (webcam && webcam.stop) {
       webcam.stop();
+      webcamRef.current = null;
     }
     const canvas = canvasRef.current;
     if (canvas) {
         const ctx = canvas.getContext('2d');
         ctx?.clearRect(0, 0, canvas.width, canvas.height);
     }
-    webcamRef.current = null;
-    animationFrameId.current = null;
-    modelRef.current = null; // Important: Clear the model ref
     setIsWebcamActive(false);
     setStatus("Webcam stopped.");
     setPredictions([]);

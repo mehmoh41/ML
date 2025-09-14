@@ -96,9 +96,11 @@ export default function SignLanguageView() {
       cancelAnimationFrame(animationFrameId.current);
       animationFrameId.current = null;
     }
+    
     const webcam = webcamRef.current;
     if (webcam && webcam.stop) {
       webcam.stop();
+      webcamRef.current = null;
     }
     
     // Clear the canvas container
@@ -106,8 +108,6 @@ export default function SignLanguageView() {
         canvasContainerRef.current.innerHTML = '';
     }
 
-    webcamRef.current = null;
-    modelRef.current = null; // Important: Clear the model ref
     setIsWebcamActive(false);
     setStatus("Webcam stopped.");
     setPredictions([]);
