@@ -37,6 +37,7 @@ export default function SignLanguageView() {
 
   const modelRef = useRef<any | null>(null);
   const webcamRef = useRef<any | null>(null);
+  const webcamContainerRef = useRef<HTMLDivElement>(null);
   const animationFrameId = useRef<number | null>(null);
 
   const stopWebcam = useCallback(() => {
@@ -59,9 +60,8 @@ export default function SignLanguageView() {
       modelRef.current = null;
     }
 
-    const webcamContainer = document.getElementById("webcam-container");
-    if (webcamContainer) {
-      webcamContainer.innerHTML = "";
+    if (webcamContainerRef.current) {
+      webcamContainerRef.current.innerHTML = "";
     }
 
     if (window.tf && window.tf.disposeVariables) {
@@ -71,6 +71,7 @@ export default function SignLanguageView() {
     setStatus("Webcam stopped.");
     setPredictions([]);
     setLoading(false);
+    setIsWebcamActive(false);
   }, []);
 
   const predict = useCallback(async () => {
@@ -102,7 +103,7 @@ export default function SignLanguageView() {
       typeof window.tf === "undefined"
     ) {
       setStatus("Waiting for libraries to load...");
-      setTimeout(() => startWebcam(), 500);
+      setTimeout(startWebcam, 500);
       return;
     }
     try {
@@ -123,10 +124,9 @@ export default function SignLanguageView() {
       await newWebcam.play();
       webcamRef.current = newWebcam;
 
-      const webcamContainer = document.getElementById("webcam-container");
-      if (webcamContainer) {
-        webcamContainer.innerHTML = "";
-        webcamContainer.appendChild(newWebcam.canvas);
+      if (webcamContainerRef.current) {
+        webcamContainerRef.current.innerHTML = "";
+        webcamContainerRef.current.appendChild(newWebcam.canvas);
       }
 
       setLoading(false);
@@ -140,9 +140,9 @@ export default function SignLanguageView() {
         title: "Initialization Failed",
         description: "Could not load model or access webcam.",
       });
-      setIsWebcamActive(false); // Turn off the toggle if it fails
+      stopWebcam();
     }
-  }, [toast, loop]);
+  }, [toast, loop, stopWebcam]);
 
   useEffect(() => {
     if (isWebcamActive) {
@@ -150,7 +150,7 @@ export default function SignLanguageView() {
     } else {
       stopWebcam();
     }
-    // This is a cleanup function that React will run when the component unmounts
+    
     return () => {
       stopWebcam();
     };
@@ -192,13 +192,17 @@ export default function SignLanguageView() {
           </CardHeader>
           <CardContent className="p-0">
             <div
+              ref={webcamContainerRef}
               id="webcam-container"
               className="relative aspect-square max-w-full overflow-hidden mx-auto bg-black flex items-center justify-center"
             >
-              {(!isWebcamActive || loading) && (
+              {!isWebcamActive && (
                 <div className="absolute z-10 text-center text-white/80 p-4">
                   <Hand className="mx-auto h-12 w-12 mb-4" />
                   <p className="font-medium">{status}</p>
+                   {!isWebcamActive && !loading && (
+                    <p className="text-sm">Click "Start Webcam" to begin.</p>
+                  )}
                 </div>
               )}
               {isWebcamActive && predictions.length > 0 && !loading && (
@@ -244,7 +248,7 @@ export default function SignLanguageView() {
                     <div className="mb-1 flex justify-between">
                       <span className="font-medium">{p.className}</span>
                       <span className="text-muted-foreground">
-                        {(p.probability * 100).toFixed(0)}%
+                        {(p.probability * 100).toFixed(2)}%
                       </span>
                     </div>
                     <Progress value={p.probability * 100} />
