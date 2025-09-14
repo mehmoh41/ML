@@ -36,7 +36,6 @@ export default function EmotionDetectionView() {
   const webcamRef = useRef<any | null>(null);
   const modelRef = useRef<any | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const webcamContainerRef = useRef<HTMLDivElement>(null);
   const animationFrameId = useRef<number | null>(null);
 
   const modelURL = URL + "model.json";
@@ -53,7 +52,9 @@ export default function EmotionDetectionView() {
       if (canvas && pose) {
         const ctx = canvas.getContext("2d");
         if (ctx) {
+          // Draw the webcam image onto the canvas
           ctx.drawImage(webcam.canvas, 0, 0);
+          // Draw the pose skeleton and keypoints
           if (window.tmPose && pose) {
             window.tmPose.drawKeypoints(pose.keypoints, 0.6, ctx);
             window.tmPose.drawSkeleton(pose.keypoints, 0.6, ctx);
@@ -92,10 +93,6 @@ export default function EmotionDetectionView() {
       await newWebcam.setup();
       await newWebcam.play();
       webcamRef.current = newWebcam;
-
-      if (webcamContainerRef.current) {
-        webcamContainerRef.current.replaceChildren(newWebcam.canvas);
-      }
       
       setLoading(false);
       setStatus("Ready");
@@ -122,7 +119,7 @@ export default function EmotionDetectionView() {
         cancelAnimationFrame(animationFrameId.current);
       }
       const webcam = webcamRef.current;
-      if (webcam) {
+      if (webcam && webcam.stop) {
         webcam.stop();
       }
     };
@@ -153,7 +150,6 @@ export default function EmotionDetectionView() {
                     <p>{status}</p>
                  </div>
               )}
-               <div ref={webcamContainerRef} className="absolute inset-0" style={{ display: loading ? 'none' : 'block' }}></div>
               <canvas ref={canvasRef} width={400} height={400} className="h-full w-full object-contain" />
               
               <div className="absolute bottom-4 right-4 flex items-center gap-4 rounded-lg bg-background/80 p-4 shadow-md backdrop-blur-sm">
