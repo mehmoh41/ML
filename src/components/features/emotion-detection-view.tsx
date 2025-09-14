@@ -44,47 +44,6 @@ export default function EmotionDetectionView() {
   const modelURL = URL + "model.json";
   const metadataURL = URL + "metadata.json";
 
-  const stopWebcam = useCallback(() => {
-    if (animationFrameId.current) {
-      cancelAnimationFrame(animationFrameId.current);
-      animationFrameId.current = null;
-    }
-
-    if (webcamRef.current) {
-      const stream = webcamRef.current.canvas?.srcObject;
-      if (stream) {
-        const tracks = stream.getTracks();
-        tracks.forEach((track: MediaStreamTrack) => track.stop());
-      }
-      if (typeof webcamRef.current.stop === "function") {
-        webcamRef.current.stop();
-      }
-      webcamRef.current = null;
-    }
-
-    const canvas = canvasRef.current;
-    if (canvas) {
-      const ctx = canvas.getContext("2d");
-      ctx?.clearRect(0, 0, canvas.width, canvas.height);
-    }
-
-    if (modelRef.current) {
-      if (typeof modelRef.current.dispose === "function") {
-        modelRef.current.dispose();
-      }
-      modelRef.current = null;
-    }
-
-    if (window.tf && window.tf.disposeVariables) {
-      window.tf.disposeVariables();
-    }
-
-    setStatus("Webcam stopped.");
-    setPredictions([]);
-    setLoading(false);
-    setIsWebcamActive(false);
-  }, []);
-
   const predict = useCallback(async () => {
     if (!modelRef.current || !webcamRef.current?.canvas) {
       return;
@@ -93,6 +52,7 @@ export default function EmotionDetectionView() {
       const { pose, posenetOutput } = await modelRef.current.estimatePose(
         webcamRef.current.canvas
       );
+      if (!modelRef.current) return;
       const prediction = await modelRef.current.predict(posenetOutput);
       setPredictions(prediction);
 
@@ -163,6 +123,47 @@ export default function EmotionDetectionView() {
       setLoading(false);
     }
   }, [loop, metadataURL, modelURL, toast]);
+
+  const stopWebcam = useCallback(() => {
+    if (animationFrameId.current) {
+      cancelAnimationFrame(animationFrameId.current);
+      animationFrameId.current = null;
+    }
+
+    if (webcamRef.current) {
+      const stream = webcamRef.current.canvas?.srcObject;
+      if (stream) {
+        const tracks = stream.getTracks();
+        tracks.forEach((track: MediaStreamTrack) => track.stop());
+      }
+      if (typeof webcamRef.current.stop === "function") {
+        webcamRef.current.stop();
+      }
+      webcamRef.current = null;
+    }
+
+    const canvas = canvasRef.current;
+    if (canvas) {
+      const ctx = canvas.getContext("2d");
+      ctx?.clearRect(0, 0, canvas.width, canvas.height);
+    }
+
+    if (modelRef.current) {
+      if (typeof modelRef.current.dispose === "function") {
+        modelRef.current.dispose();
+      }
+      modelRef.current = null;
+    }
+
+    if (window.tf && window.tf.disposeVariables) {
+      window.tf.disposeVariables();
+    }
+
+    setStatus("Webcam stopped.");
+    setPredictions([]);
+    setLoading(false);
+    setIsWebcamActive(false);
+  }, []);
 
   useEffect(() => {
     return () => {
