@@ -12,6 +12,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Hand, Type, Webcam, Video, VideoOff } from "lucide-react";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Progress } from "../ui/progress";
+import WebcamView from "../shared/webcam-view";
 
 // Extend window to include tmImage
 declare global {
@@ -35,65 +36,42 @@ export default function SignLanguageView() {
   const [status, setStatus] = useState("Ready to start");
   const [isWebcamActive, setIsWebcamActive] = useState(false);
 
-  const webcamRef = useRef<any | null>(null);
   const modelRef = useRef<any | null>(null);
   const animationFrameId = useRef<number | null>(null);
-  const canvasContainerRef = useRef<HTMLDivElement>(null);
-  
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+
   const predict = useCallback(async () => {
-    // Ensure refs are still valid
-    if (!modelRef.current || !webcamRef.current?.canvas) {
-        return;
+    if (!modelRef.current || !videoRef.current) {
+      return;
     }
     try {
-        const prediction = await modelRef.current.predict(
-            webcamRef.current.canvas
-        );
-        setPredictions(prediction);
+      const prediction = await modelRef.current.predict(videoRef.current);
+      setPredictions(prediction);
     } catch (error) {
-        console.error("Prediction error:", error);
+      console.error("Prediction error:", error);
     }
   }, []);
 
   const loop = useCallback(async () => {
-    if (webcamRef.current) {
-        webcamRef.current.update();
-        await predict();
+    await predict();
+    if (isWebcamActive) {
+      animationFrameId.current = requestAnimationFrame(loop);
     }
-    animationFrameId.current = requestAnimationFrame(loop);
-  }, [predict]);
+  }, [predict, isWebcamActive]);
 
   const stopWebcam = useCallback(() => {
     if (animationFrameId.current) {
       cancelAnimationFrame(animationFrameId.current);
       animationFrameId.current = null;
     }
-
-    // Stop the webcam stream
-    if (webcamRef.current && typeof webcamRef.current.stop === 'function') {
-        const stream = webcamRef.current.canvas?.srcObject;
-        if (stream) {
-            const tracks = stream.getTracks();
-            tracks.forEach((track: MediaStreamTrack) => track.stop());
-        }
-        webcamRef.current.stop();
-        webcamRef.current = null;
-    }
-
-    // Clear the container
-    if (canvasContainerRef.current) {
-      canvasContainerRef.current.innerHTML = "";
-    }
     
-    // Dispose of the model
     if (modelRef.current) {
-        if (typeof modelRef.current.dispose === 'function') {
-            modelRef.current.dispose();
-        }
-        modelRef.current = null;
+      if (typeof modelRef.current.dispose === 'function') {
+        modelRef.current.dispose();
+      }
+      modelRef.current = null;
     }
     
-    // Clean up global tf memory
     if(window.tf && window.tf.disposeVariables) {
       window.tf.disposeVariables();
     }
@@ -104,12 +82,16 @@ export default function SignLanguageView() {
   }, []);
 
   const startWebcam = useCallback(async () => {
-    if (isWebcamActive) return; // Prevent multiple starts
-
     if (typeof window.tmImage === "undefined" || typeof window.tf === "undefined") {
       setStatus("Waiting for libraries to load...");
-      setTimeout(() => startWebcam(), 500); // Retry after a short delay
+      setTimeout(() => startWebcam(), 500);
       return;
+    }
+
+    if (!videoRef.current) {
+        setStatus("Waiting for webcam to initialize...");
+        setTimeout(() => startWebcam(), 200);
+        return;
     }
 
     try {
@@ -120,24 +102,11 @@ export default function SignLanguageView() {
       const metadataURL = URL + "metadata.json";
 
       setStatus("Loading model...");
-      modelRef.current = await window.tmImage.load(modelURL, metadataURL);
-
-      setStatus("Initializing webcam...");
-      const size = 400;
-      const flip = true;
-      const newWebcam = new window.tmImage.Webcam(size, size, flip);
-      await newWebcam.setup();
-      await newWebcam.play();
-      webcamRef.current = newWebcam;
-
-      if (canvasContainerRef.current) {
-        canvasContainerRef.current.innerHTML = ""; // Clear previous canvas if any
-        canvasContainerRef.current.appendChild(newWebcam.canvas);
-      }
+      const loadedModel = await window.tmImage.load(modelURL, metadataURL);
+      modelRef.current = loadedModel;
       
       setLoading(false);
       setStatus("Ready");
-      setIsWebcamActive(true);
       
       animationFrameId.current = requestAnimationFrame(loop);
     } catch (error) {
@@ -148,27 +117,37 @@ export default function SignLanguageView() {
         title: "Initialization Failed",
         description: "Could not load model or access webcam.",
       });
-      setIsWebcamActive(false);
+      setIsWebcamActive(false); // Turn off on error
       setLoading(false);
     }
-  }, [isWebcamActive, loop, toast]);
+  }, [loop, toast]);
 
-  // This effect ensures cleanup happens when the component unmounts.
+
   useEffect(() => {
+    if (isWebcamActive) {
+      startWebcam();
+    } else {
+      stopWebcam();
+    }
+    // This effect should re-run when isWebcamActive changes.
+    // The cleanup function will run when the component unmounts or before this effect re-runs.
     return () => {
       stopWebcam();
     };
-  }, [stopWebcam]);
-
-  const handleToggleWebcam = useCallback(() => {
-    if (isWebcamActive) {
-      stopWebcam();
-      setIsWebcamActive(false);
-    } else {
-      startWebcam();
-    }
   }, [isWebcamActive, startWebcam, stopWebcam]);
 
+
+  const handleToggleWebcam = () => {
+    setIsWebcamActive((prev) => !prev);
+  };
+  
+  const onStream = useCallback((stream: MediaStream) => {
+    const video = document.querySelector('[data-ai-id="webcam-video-feed"]') as HTMLVideoElement;
+    if (video) {
+        video.srcObject = stream;
+        videoRef.current = video;
+    }
+  }, []);
 
   const highestPrediction = predictions.reduce(
     (prev, current) => (prev.probability > current.probability ? prev : current),
@@ -193,7 +172,7 @@ export default function SignLanguageView() {
               variant="outline"
               size="sm"
               onClick={handleToggleWebcam}
-              disabled={loading}
+              disabled={loading && isWebcamActive}
             >
               {isWebcamActive ? <VideoOff /> : <Video />}
               <span>{isWebcamActive ? "Stop Webcam" : "Start Webcam"}</span>
@@ -201,20 +180,14 @@ export default function SignLanguageView() {
           </CardHeader>
           <CardContent className="p-0">
             <div className="relative aspect-square max-w-full overflow-hidden mx-auto bg-black flex items-center justify-center">
-              {(loading || !isWebcamActive) && (
+              <WebcamView enabled={isWebcamActive} onStream={onStream} />
+               {(loading && isWebcamActive) && (
                 <div className="absolute z-10 text-center text-white/80 p-4">
                   <Hand className="mx-auto h-12 w-12 mb-4" />
                   <p className="font-medium">{status}</p>
-                  {!isWebcamActive && !loading && (
-                    <p className="text-sm">Click "Start Webcam" to begin.</p>
-                  )}
                 </div>
               )}
-              <div
-                ref={canvasContainerRef}
-                className="h-full w-full flex items-center justify-center [&>canvas]:h-full [&>canvas]:w-full [&>canvas]:object-contain"
-              />
-              {isWebcamActive && predictions.length > 0 && (
+              {isWebcamActive && predictions.length > 0 && !loading && (
                 <div className="absolute bottom-4 left-4 flex items-center gap-4 rounded-lg bg-background/80 p-4 shadow-md backdrop-blur-sm">
                   <Type className="h-10 w-10 text-primary" />
                   <div>

@@ -10,7 +10,14 @@ export default function WebcamView({ onStream, onStop, enabled = true }: { onStr
   useEffect(() => {
     let stream: MediaStream | null = null;
     const enableWebcam = async () => {
-      if (!enabled) return;
+      if (!enabled) {
+        if (videoRef.current?.srcObject) {
+            const currentStream = videoRef.current.srcObject as MediaStream;
+            currentStream.getTracks().forEach(track => track.stop());
+            videoRef.current.srcObject = null;
+          }
+        return;
+      };
 
       try {
         stream = await navigator.mediaDevices.getUserMedia({
@@ -58,6 +65,7 @@ export default function WebcamView({ onStream, onStop, enabled = true }: { onStr
         playsInline
         muted
         className="h-full w-full object-cover"
+        data-ai-id="webcam-video-feed"
       />
       {error && (
         <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/80 p-4 text-center text-white">
