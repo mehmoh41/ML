@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { Hand, Type, Webcam, Video, VideoOff } from "lucide-react";
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Progress } from "../ui/progress";
 
 // Extend window to include tmImage
@@ -35,34 +35,8 @@ export default function SignLanguageView() {
   const [status, setStatus] = useState("Ready to start");
   const [isWebcamActive, setIsWebcamActive] = useState(false);
 
-  const modelRef = useRef<any | null>(null);
-  const webcamRef = useRef<any | null>(null);
   const webcamContainerRef = useRef<HTMLDivElement>(null);
   const animationFrameId = useRef<number | null>(null);
-
-  const predict = useCallback(async () => {
-    // Check if refs are valid
-    if (!modelRef.current || !webcamRef.current?.canvas) {
-      return;
-    }
-    try {
-      // predict can take in an image, video or canvas html element
-      const prediction = await modelRef.current.predict(
-        webcamRef.current.canvas
-      );
-      setPredictions(prediction);
-    } catch (error) {
-      console.error("Prediction error:", error);
-    }
-  }, []);
-
-  const loop = useCallback(async () => {
-    if (webcamRef.current) {
-      webcamRef.current.update(); // update the webcam frame
-      await predict();
-    }
-    animationFrameId.current = requestAnimationFrame(loop);
-  }, [predict]);
 
   const handleToggleWebcam = () => {
     setIsWebcamActive((prev) => !prev);
@@ -94,15 +68,13 @@ export default function SignLanguageView() {
 
         setStatus("Loading model...");
         model = await window.tmImage.load(modelURL, metadataURL);
-        modelRef.current = model;
-
+        
         setStatus("Setting up webcam...");
         const flip = true; // whether to flip the webcam
         webcam = new window.tmImage.Webcam(200, 200, flip); // width, height, flip
         await webcam.setup(); // request access to the webcam
         await webcam.play();
-        webcamRef.current = webcam;
-
+        
         if (webcamContainerRef.current) {
           webcamContainerRef.current.innerHTML = "";
           webcamContainerRef.current.appendChild(webcam.canvas);
@@ -110,7 +82,17 @@ export default function SignLanguageView() {
 
         setLoading(false);
         setStatus("Ready");
+
+        const loop = async () => {
+          if (!webcam) return;
+          webcam.update(); // update the webcam frame
+          const prediction = await model.predict(webcam.canvas);
+          setPredictions(prediction);
+          animationFrameId.current = requestAnimationFrame(loop);
+        };
+
         animationFrameId.current = requestAnimationFrame(loop);
+
       } catch (error) {
         console.error("Error initializing Teachable Machine:", error);
         setStatus("Error loading model. Please check permissions and refresh.");
@@ -148,13 +130,11 @@ export default function SignLanguageView() {
         window.tf.disposeVariables();
       }
       
-      modelRef.current = null;
-      webcamRef.current = null;
       setStatus("Ready to start");
       setPredictions([]);
       setLoading(false);
     }
-  }, [isWebcamActive, loop, toast]);
+  }, [isWebcamActive, toast]);
 
   const highestPrediction = predictions.reduce(
     (prev, current) =>

@@ -9,7 +9,7 @@ import {
 } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { Webcam, Video, VideoOff } from "lucide-react";
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Progress } from "../ui/progress";
 import { Button } from "../ui/button";
 
@@ -36,52 +36,12 @@ export default function EmotionDetectionView() {
   const [status, setStatus] = useState("Ready to start");
   const [isWebcamActive, setIsWebcamActive] = useState(false);
 
-  const modelRef = useRef<any | null>(null);
-  const webcamRef = useRef<any | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const animationFrameId = useRef<number | null>(null);
 
-  const predict = useCallback(async () => {
-    // Check if refs are valid
-    if (!modelRef.current || !webcamRef.current?.canvas) {
-      return;
-    }
-    try {
-      const { pose, posenetOutput } = await modelRef.current.estimatePose(
-        webcamRef.current.canvas
-      );
-      // Check again inside async function
-      if (!modelRef.current) return;
-      const prediction = await modelRef.current.predict(posenetOutput);
-      setPredictions(prediction);
-
-      const canvas = canvasRef.current;
-      if (canvas && pose) {
-        const ctx = canvas.getContext("2d");
-        if (ctx) {
-          ctx.drawImage(webcamRef.current.canvas, 0, 0);
-          if (pose && window.tmPose) {
-            window.tmPose.drawKeypoints(pose.keypoints, 0.6, ctx);
-            window.tmPose.drawSkeleton(pose.keypoints, 0.6, ctx);
-          }
-        }
-      }
-    } catch (error) {
-      console.error("Prediction error:", error);
-    }
-  }, []);
-
-  const loop = useCallback(async () => {
-    if (webcamRef.current) {
-      webcamRef.current.update();
-      await predict();
-    }
-    animationFrameId.current = requestAnimationFrame(loop);
-  }, [predict]);
-
-  const handleToggleWebcam = useCallback(() => {
+  const handleToggleWebcam = () => {
     setIsWebcamActive((prev) => !prev);
-  }, []);
+  };
 
   useEffect(() => {
     if (!isWebcamActive) {
@@ -97,19 +57,19 @@ export default function EmotionDetectionView() {
         typeof window.tf === "undefined"
       ) {
         setStatus("Waiting for libraries to load...");
-        setTimeout(() => init(), 500);
+        setTimeout(init, 500);
         return;
       }
+
       try {
         setLoading(true);
         setStatus("Initializing TensorFlow...");
         await window.tf.ready();
-        
+
         setStatus("Loading model...");
         const modelURL = URL + "model.json";
         const metadataURL = URL + "metadata.json";
         model = await window.tmPose.load(modelURL, metadataURL);
-        modelRef.current = model;
 
         setStatus("Initializing webcam...");
         const size = 400;
@@ -117,11 +77,34 @@ export default function EmotionDetectionView() {
         webcam = new window.tmPose.Webcam(size, size, flip);
         await webcam.setup();
         await webcam.play();
-        webcamRef.current = webcam;
 
         setLoading(false);
         setStatus("Ready");
 
+        const loop = async () => {
+          if (!webcam) return;
+          webcam.update();
+
+          const { pose, posenetOutput } = await model.estimatePose(
+            webcam.canvas
+          );
+          const prediction = await model.predict(posenetOutput);
+          setPredictions(prediction);
+
+          const canvas = canvasRef.current;
+          if (canvas && pose) {
+            const ctx = canvas.getContext("2d");
+            if (ctx) {
+              ctx.drawImage(webcam.canvas, 0, 0);
+              if (pose && window.tmPose) {
+                window.tmPose.drawKeypoints(pose.keypoints, 0.6, ctx);
+                window.tmPose.drawSkeleton(pose.keypoints, 0.6, ctx);
+              }
+            }
+          }
+          animationFrameId.current = requestAnimationFrame(loop);
+        };
+        
         animationFrameId.current = requestAnimationFrame(loop);
       } catch (error) {
         console.error("Error initializing Teachable Machine:", error);
@@ -135,11 +118,10 @@ export default function EmotionDetectionView() {
         setLoading(false);
       }
     };
-    
+
     init();
 
     return () => {
-      // This is the cleanup function.
       if (animationFrameId.current) {
         cancelAnimationFrame(animationFrameId.current);
         animationFrameId.current = null;
@@ -168,13 +150,11 @@ export default function EmotionDetectionView() {
         ctx?.clearRect(0, 0, canvas.width, canvas.height);
       }
       
-      modelRef.current = null;
-      webcamRef.current = null;
       setStatus("Ready to start");
       setPredictions([]);
       setLoading(false);
     };
-  }, [isWebcamActive, loop, toast]);
+  }, [isWebcamActive, toast]);
 
   const highestPrediction = predictions.reduce(
     (prev, current) =>
