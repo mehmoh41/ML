@@ -67,8 +67,8 @@ export default function SignLanguageView() {
     };
     
     const loop = async () => {
-        await predict();
         if (isWebcamActive) {
+            await predict();
             localAnimationFrameId = requestAnimationFrame(loop);
         }
     };
@@ -95,6 +95,7 @@ export default function SignLanguageView() {
 
             setStatus("Loading model...");
             model = await window.tmImage.load(modelURL, metadataURL);
+            modelRef.current = model;
             
             setLoading(false);
             setStatus("Ready");
@@ -123,8 +124,10 @@ export default function SignLanguageView() {
       if (localAnimationFrameId) {
         cancelAnimationFrame(localAnimationFrameId);
       }
-      if (model && typeof model.dispose === 'function') {
-        model.dispose();
+      const currentModel = modelRef.current;
+      if (currentModel && typeof currentModel.dispose === 'function') {
+        currentModel.dispose();
+        modelRef.current = null;
       }
       if (window.tf && window.tf.disposeVariables) {
         window.tf.disposeVariables();
