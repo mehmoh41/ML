@@ -22,7 +22,7 @@ declare global {
   }
 }
 
-const URL = "/my_model/"; // Using local model
+const URL = "https://teachablemachine.withgoogle.com/models/p2LLADs3g/";
 
 type Prediction = {
   className: string;
@@ -41,7 +41,9 @@ export default function SignLanguageView() {
   const animationFrameId = useRef<number | null>(null);
 
   const predict = useCallback(async () => {
-    if (!modelRef.current || !videoRef.current) return;
+    if (!modelRef.current || !videoRef.current) {
+      return;
+    }
     try {
       const prediction = await modelRef.current.predict(videoRef.current);
       setPredictions(prediction);
@@ -103,19 +105,19 @@ export default function SignLanguageView() {
     [loop, toast]
   );
 
-  const stopWebcam = useCallback(() => {
+    const stopWebcam = useCallback(() => {
     if (animationFrameId.current) {
       cancelAnimationFrame(animationFrameId.current);
       animationFrameId.current = null;
     }
-
+    
     if (modelRef.current) {
       if (typeof modelRef.current.dispose === "function") {
         modelRef.current.dispose();
       }
       modelRef.current = null;
     }
-
+    
     if (window.tf && window.tf.disposeVariables) {
       window.tf.disposeVariables();
     }
@@ -126,6 +128,7 @@ export default function SignLanguageView() {
     setStatus("Ready to start");
   }, []);
 
+
   useEffect(() => {
     // This is the cleanup function that runs when the component unmounts.
     return () => {
@@ -135,7 +138,7 @@ export default function SignLanguageView() {
       stopWebcam();
     };
   }, [isWebcamActive, stopWebcam]);
-
+  
   const handleToggleWebcam = () => {
     setIsWebcamActive((prev) => !prev);
   };

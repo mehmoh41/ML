@@ -25,6 +25,9 @@ type Prediction = {
   probability: number;
 };
 
+// URL to your Teachable Machine model
+const URL = "https://teachablemachine.withgoogle.com/models/VEp_82G92/";
+
 export default function VoiceRecognitionView() {
   const { toast } = useToast();
   const [predictions, setPredictions] = useState<Prediction[]>([]);
@@ -79,7 +82,6 @@ export default function VoiceRecognitionView() {
       }
 
       setStatus("Loading model...");
-      const URL = window.location.origin + "/my_model/";
       const modelURL = URL + "model.json";
       const metadataURL = URL + "metadata.json";
 
