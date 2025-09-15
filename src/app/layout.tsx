@@ -27,11 +27,6 @@ export default function RootLayout({
           href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&display=swap"
           rel="stylesheet"
         />
-        <style>{`
-          df-messenger {
-            --df-messenger-chat-icon: url('/favicon.ico');
-          }
-        `}</style>
       </head>
       <body className="font-body antialiased">
         <Script

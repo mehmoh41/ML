@@ -23,6 +23,22 @@ export default function DialogflowMessenger() {
     setIsMounted(true);
   }, []);
 
+  useEffect(() => {
+    if (isMounted) {
+      const dfMessenger = document.querySelector('df-messenger');
+      if (dfMessenger) {
+        const style = dfMessenger.shadowRoot?.querySelector('style');
+        if (style) {
+          style.innerHTML += `
+            button.chat-button {
+              background-image: url('/favicon.ico');
+            }
+          `;
+        }
+      }
+    }
+  }, [isMounted]);
+
   if (!isMounted) {
     return null;
   }
