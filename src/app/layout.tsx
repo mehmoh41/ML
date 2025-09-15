@@ -26,6 +26,11 @@ export default function RootLayout({
           href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&display=swap"
           rel="stylesheet"
         />
+        <style>{`
+          df-messenger {
+            --df-messenger-chat-icon: url('/favicon.ico');
+          }
+        `}</style>
       </head>
       <body className="font-body antialiased">
         <Script
@@ -41,7 +46,7 @@ export default function RootLayout({
         </SidebarProvider>
         <df-messenger
           intent="WELCOME"
-          chat-title="ml-support-agent"
+          chat-title="MM"
           agent-id="d401ea4a-dda5-43fc-a39b-6908fb9ccc15"
           language-code="en"
         ></df-messenger>
