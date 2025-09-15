@@ -30,16 +30,25 @@ export default function DialogflowMessenger() {
       const dfMessenger = document.querySelector('df-messenger');
       if (dfMessenger) {
         // Event listener for when a rich content button or card is clicked
-        const handleButtonClicked = (event: any) => {
+        const handleCardClicked = (event: any) => {
           // Check for a URL in the event payload, which we use for navigation
-          const url = event.detail.element.event?.parameters?.url;
+          const url = event.detail.card.actionLink;
 
           if (url) {
             router.push(url);
+          } else if (event.detail.card.buttons?.[0]?.postback) {
+             try {
+                const postbackData = JSON.parse(event.detail.card.buttons[0].postback);
+                if (postbackData.action === 'navigate' && postbackData.url) {
+                    router.push(postbackData.url);
+                }
+             } catch(e) {
+                // Not a JSON postback, ignore
+             }
           }
         };
         
-        dfMessenger.addEventListener('df-button-clicked', handleButtonClicked);
+        dfMessenger.addEventListener('df-card-clicked', handleCardClicked);
 
         // Wait for the component to be ready for styling
         dfMessenger.addEventListener('df-messenger-loaded', () => {
@@ -72,7 +81,7 @@ export default function DialogflowMessenger() {
         
         // Cleanup function to remove event listener
         return () => {
-          dfMessenger.removeEventListener('df-button-clicked', handleButtonClicked);
+          dfMessenger.removeEventListener('df-card-clicked', handleCardClicked);
         };
       }
     }
