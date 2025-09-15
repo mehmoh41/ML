@@ -31,7 +31,12 @@ export default function DialogflowMessenger() {
       if (dfMessenger) {
         // Event listener for when a response is received from Dialogflow
         const handleResponseReceived = (event: any) => {
-          const richContent = event.detail.response.queryResult.fulfillmentMessages.find(
+          const fulfillmentMessages = event.detail.response.queryResult.fulfillmentMessages;
+          if (!fulfillmentMessages) {
+            return;
+          }
+
+          const richContent = fulfillmentMessages.find(
             (msg: any) => msg.payload && msg.payload.richContent
           );
 
