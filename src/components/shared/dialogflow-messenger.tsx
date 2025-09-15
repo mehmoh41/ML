@@ -27,14 +27,34 @@ export default function DialogflowMessenger() {
     if (isMounted) {
       const dfMessenger = document.querySelector('df-messenger');
       if (dfMessenger) {
-        const style = dfMessenger.shadowRoot?.querySelector('style');
-        if (style) {
-          style.innerHTML += `
-            button.chat-button {
-              background-image: url('/favicon.ico');
+        // Wait for the component to be ready
+        dfMessenger.addEventListener('df-messenger-loaded', () => {
+          const shadowRoot = dfMessenger.shadowRoot;
+          if (shadowRoot) {
+            // Change chat button icon
+            const style = shadowRoot.querySelector('style');
+            if (style) {
+              style.textContent += `
+                button.chat-button {
+                  background-image: url('/favicon.ico');
+                  background-size: cover;
+                }
+              `;
             }
-          `;
-        }
+            
+            // Add logo to title
+            const titleElement = shadowRoot.querySelector('.df-messenger-font-title.title-wrapper > .title');
+            if (titleElement && !titleElement.querySelector('img')) {
+              const img = document.createElement('img');
+              img.src = '/favicon.ico';
+              img.style.width = '24px';
+              img.style.height = '24px';
+              img.style.marginRight = '8px';
+              img.style.verticalAlign = 'middle';
+              titleElement.prepend(img);
+            }
+          }
+        });
       }
     }
   }, [isMounted]);
