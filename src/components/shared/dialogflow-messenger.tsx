@@ -33,12 +33,8 @@ export default function DialogflowMessenger() {
         const handleCardClicked = (event: any) => {
           console.log('Dialogflow card clicked event:', event.detail);
           
-          // Check for a URL in the event payload, which we use for navigation
-          const url = event.detail.card.actionLink;
-
-          if (url) {
-            router.push(url);
-          } else if (event.detail.card.buttons?.[0]?.postback) {
+          // Check for a URL from a postback button
+          if (event.detail.card?.buttons?.[0]?.postback) {
              try {
                 const postbackData = JSON.parse(event.detail.card.buttons[0].postback);
                 if (postbackData.action === 'navigate' && postbackData.url) {
