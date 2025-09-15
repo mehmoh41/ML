@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
 // Extend JSX to recognize the df-messenger custom element
@@ -18,6 +19,7 @@ declare global {
 
 export default function DialogflowMessenger() {
   const [isMounted, setIsMounted] = useState(false);
+  const router = useRouter();
 
   useEffect(() => {
     setIsMounted(true);
@@ -27,13 +29,33 @@ export default function DialogflowMessenger() {
     if (isMounted) {
       const dfMessenger = document.querySelector('df-messenger');
       if (dfMessenger) {
-        // Wait for the component to be ready
+        // Event listener for when a response is received from Dialogflow
+        const handleResponseReceived = (event: any) => {
+          const richContent = event.detail.response.queryResult.fulfillmentMessages.find(
+            (msg: any) => msg.payload && msg.payload.richContent
+          );
+
+          if (richContent) {
+            const infoCard = richContent.payload.richContent[0].find(
+              (item: any) => item.type === 'info' && item.event?.name === 'navigate'
+            );
+
+            if (infoCard && infoCard.event.parameters?.url) {
+              const url = infoCard.event.parameters.url;
+              router.push(url);
+            }
+          }
+        };
+
+        dfMessenger.addEventListener('df-response-received', handleResponseReceived);
+
+        // Wait for the component to be ready for styling
         dfMessenger.addEventListener('df-messenger-loaded', () => {
           const shadowRoot = dfMessenger.shadowRoot;
           if (shadowRoot) {
-            // Change chat button icon
             const style = shadowRoot.querySelector('style');
             if (style) {
+              // Change chat button icon
               style.textContent += `
                 button.chat-button {
                   background-image: url('/favicon.ico');
@@ -42,9 +64,9 @@ export default function DialogflowMessenger() {
               `;
             }
             
-            // Add logo to title
             const titleElement = shadowRoot.querySelector('.df-messenger-font-title.title-wrapper > .title');
             if (titleElement && !titleElement.querySelector('img')) {
+              // Add logo to title
               const img = document.createElement('img');
               img.src = '/favicon.ico';
               img.style.width = '24px';
@@ -55,9 +77,14 @@ export default function DialogflowMessenger() {
             }
           }
         });
+        
+        // Cleanup function to remove event listener
+        return () => {
+          dfMessenger.removeEventListener('df-response-received', handleResponseReceived);
+        };
       }
     }
-  }, [isMounted]);
+  }, [isMounted, router]);
 
   if (!isMounted) {
     return null;
