@@ -8,6 +8,7 @@ const titles: { [key: string]: string } = {
   "/emotion-detection": "Emotion Detection",
   "/sign-language": "Sign Language",
   "/voice-recognition": "Voice Recognition",
+  "/chatbot": "Chatbot",
 };
 
 export function SiteHeader() {
@@ -15,6 +16,7 @@ export function SiteHeader() {
   const [title, setTitle] = useState("MM models");
 
   useEffect(() => {
+    // This effect runs only on the client, after hydration
     setTitle(titles[pathname] ?? "MM models");
   }, [pathname]);
 

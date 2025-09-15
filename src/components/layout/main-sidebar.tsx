@@ -8,7 +8,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
-import { Hand, Mic, Smile } from "lucide-react";
+import { Hand, Mic, MessageSquare, Smile } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { Logo } from "../shared/logo";
 import { useEffect, useState } from "react";
@@ -65,6 +65,18 @@ export function MainSidebar() {
               <a href="/voice-recognition">
                 <Mic />
                 <span>Voice Recognition</span>
+              </a>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              asChild
+              isActive={isActive("/chatbot")}
+              tooltip="Chatbot"
+            >
+              <a href="/chatbot">
+                <MessageSquare />
+                <span>Chatbot</span>
               </a>
             </SidebarMenuButton>
           </SidebarMenuItem>
