@@ -31,6 +31,8 @@ export default function DialogflowMessenger() {
       if (dfMessenger) {
         // Event listener for when a rich content button or card is clicked
         const handleCardClicked = (event: any) => {
+          console.log('Dialogflow card clicked event:', event.detail);
+          
           // Check for a URL in the event payload, which we use for navigation
           const url = event.detail.card.actionLink;
 
