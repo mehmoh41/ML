@@ -68,18 +68,6 @@ export function MainSidebar() {
               </a>
             </SidebarMenuButton>
           </SidebarMenuItem>
-          <SidebarMenuItem>
-            <SidebarMenuButton
-              asChild
-              isActive={isActive("/chatbot")}
-              tooltip="Chatbot"
-            >
-              <a href="/chatbot">
-                <MessageSquare />
-                <span>Chatbot</span>
-              </a>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
         </SidebarMenu>
       </SidebarContent>
     </Sidebar>

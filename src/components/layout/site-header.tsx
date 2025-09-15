@@ -8,7 +8,6 @@ const titles: { [key: string]: string } = {
   "/emotion-detection": "Emotion Detection",
   "/sign-language": "Sign Language",
   "/voice-recognition": "Voice Recognition",
-  "/chatbot": "Chatbot",
 };
 
 export function SiteHeader() {

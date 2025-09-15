@@ -4,6 +4,7 @@ import { Toaster } from '@/components/ui/toaster';
 import { SidebarProvider, SidebarInset } from '@/components/ui/sidebar';
 import { MainSidebar } from '@/components/layout/main-sidebar';
 import { SiteHeader } from '@/components/layout/site-header';
+import Script from 'next/script';
 
 export const metadata: Metadata = {
   title: 'ML Model Showcase',
@@ -27,6 +28,10 @@ export default function RootLayout({
         />
       </head>
       <body className="font-body antialiased">
+        <Script
+          src="https://www.gstatic.com/dialogflow-console/fast/messenger/bootstrap.js?v=1"
+          strategy="beforeInteractive"
+        />
         <SidebarProvider>
           <MainSidebar />
           <SidebarInset>
@@ -34,8 +39,28 @@ export default function RootLayout({
             <main>{children}</main>
           </SidebarInset>
         </SidebarProvider>
+        <df-messenger
+          intent="WELCOME"
+          chat-title="ml-support-agent"
+          agent-id="d401ea4a-dda5-43fc-a39b-6908fb9ccc15"
+          language-code="en"
+        ></df-messenger>
         <Toaster />
       </body>
     </html>
   );
+}
+
+// Extend JSX to recognize the df-messenger custom element
+declare global {
+  namespace JSX {
+    interface IntrinsicElements {
+      'df-messenger': React.DetailedHTMLProps<React.HTMLAttributes<HTMLElement>, HTMLElement> & {
+        intent?: string;
+        'chat-title'?: string;
+        'agent-id'?: string;
+        'language-code'?: string;
+      };
+    }
+  }
 }
