@@ -29,30 +29,17 @@ export default function DialogflowMessenger() {
     if (isMounted) {
       const dfMessenger = document.querySelector('df-messenger');
       if (dfMessenger) {
-        // Event listener for when a response is received from Dialogflow
-        const handleResponseReceived = (event: any) => {
-          const fulfillmentMessages = event.detail.response.queryResult.fulfillmentMessages;
-          if (!fulfillmentMessages) {
-            return;
-          }
+        // Event listener for when a rich content button is clicked
+        const handleButtonClicked = (event: any) => {
+          const eventName = event.detail.element.event?.name;
+          const url = event.detail.element.event?.parameters?.url;
 
-          const richContent = fulfillmentMessages.find(
-            (msg: any) => msg.payload && msg.payload.richContent
-          );
-
-          if (richContent) {
-            const infoCard = richContent.payload.richContent[0].find(
-              (item: any) => item.type === 'info' && item.event?.name === 'navigate'
-            );
-
-            if (infoCard && infoCard.event.parameters?.url) {
-              const url = infoCard.event.parameters.url;
-              router.push(url);
-            }
+          if (eventName === 'navigate' && url) {
+            router.push(url);
           }
         };
-
-        dfMessenger.addEventListener('df-response-received', handleResponseReceived);
+        
+        dfMessenger.addEventListener('df-button-clicked', handleButtonClicked);
 
         // Wait for the component to be ready for styling
         dfMessenger.addEventListener('df-messenger-loaded', () => {
@@ -85,7 +72,7 @@ export default function DialogflowMessenger() {
         
         // Cleanup function to remove event listener
         return () => {
-          dfMessenger.removeEventListener('df-response-received', handleResponseReceived);
+          dfMessenger.removeEventListener('df-button-clicked', handleButtonClicked);
         };
       }
     }
