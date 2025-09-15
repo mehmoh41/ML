@@ -29,12 +29,12 @@ export default function DialogflowMessenger() {
     if (isMounted) {
       const dfMessenger = document.querySelector('df-messenger');
       if (dfMessenger) {
-        // Event listener for when a rich content button is clicked
+        // Event listener for when a rich content button or card is clicked
         const handleButtonClicked = (event: any) => {
-          const eventName = event.detail.element.event?.name;
+          // Check for a URL in the event payload, which we use for navigation
           const url = event.detail.element.event?.parameters?.url;
 
-          if (eventName === 'navigate' && url) {
+          if (url) {
             router.push(url);
           }
         };
