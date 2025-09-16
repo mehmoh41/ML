@@ -5,7 +5,8 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 
 const titles: { [key: string]: string } = {
-  "/emotion-detection": "Emotion Detection",
+  "/emotion-detection": "Emotion Detection (Pose)",
+  "/emotion-detection-image": "Emotion Detection (Image)",
   "/sign-language": "Sign Language (Pose)",
   "/sign-language-image": "Sign Language (Image)",
   "/voice-recognition": "Voice Recognition",

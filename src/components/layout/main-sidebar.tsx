@@ -36,11 +36,23 @@ export function MainSidebar() {
             <SidebarMenuButton
               asChild
               isActive={isActive("/emotion-detection")}
-              tooltip="Emotion Detection"
+              tooltip="Emotion Detection (Pose)"
             >
               <a href="/emotion-detection">
                 <Smile />
-                <span>Emotion Detection</span>
+                <span>Emotion Detection (Pose)</span>
+              </a>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              asChild
+              isActive={isActive("/emotion-detection-image")}
+              tooltip="Emotion Detection (Image)"
+            >
+              <a href="/emotion-detection-image">
+                <Image />
+                <span>Emotion Detection (Image)</span>
               </a>
             </SidebarMenuButton>
           </SidebarMenuItem>
