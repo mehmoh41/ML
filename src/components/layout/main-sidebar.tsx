@@ -8,7 +8,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
-import { Hand, Mic, MessageSquare, Smile } from "lucide-react";
+import { Hand, Mic, Smile, Image } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { Logo } from "../shared/logo";
 import { useEffect, useState } from "react";
@@ -48,11 +48,23 @@ export function MainSidebar() {
             <SidebarMenuButton
               asChild
               isActive={isActive("/sign-language")}
-              tooltip="Sign Language"
+              tooltip="Sign Language (Pose)"
             >
               <a href="/sign-language">
                 <Hand />
-                <span>Sign Language</span>
+                <span>Sign Language (Pose)</span>
+              </a>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              asChild
+              isActive={isActive("/sign-language-image")}
+              tooltip="Sign Language (Image)"
+            >
+              <a href="/sign-language-image">
+                <Image />
+                <span>Sign Language (Image)</span>
               </a>
             </SidebarMenuButton>
           </SidebarMenuItem>

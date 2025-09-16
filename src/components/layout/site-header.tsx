@@ -6,7 +6,8 @@ import { useEffect, useState } from "react";
 
 const titles: { [key: string]: string } = {
   "/emotion-detection": "Emotion Detection",
-  "/sign-language": "Sign Language",
+  "/sign-language": "Sign Language (Pose)",
+  "/sign-language-image": "Sign Language (Image)",
   "/voice-recognition": "Voice Recognition",
 };
 
