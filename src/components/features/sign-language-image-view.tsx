@@ -71,7 +71,7 @@ export default function SignLanguageImageView() {
         
         setStatus("Setting up webcam...");
         const flip = true; // whether to flip the webcam
-        webcam = new window.tmImage.Webcam(200, 200, flip); // width, height, flip
+        webcam = new window.tmImage.Webcam(400, 400, flip); // width, height, flip
         await webcam.setup(); // request access to the webcam
         await webcam.play();
         
